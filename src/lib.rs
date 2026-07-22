@@ -1,6 +1,6 @@
 #![no_std]
 
-use pinocchio::{Address, no_allocator, nostd_panic_handler, program_entrypoint};
+use pinocchio::{Address, no_allocator, program_entrypoint};
 
 pub mod constants;
 pub mod entrypoint;
@@ -11,11 +11,9 @@ pub mod state;
 
 program_entrypoint!(entrypoint::process_instruction);
 no_allocator!();
-nostd_panic_handler!();
 
-// Placeholder — replace after `cargo build-sbf` +
-// `solana-keygen pubkey ./target/deploy/amm-keypair.json`.
-pub const ID: Address = Address::new_from_array([1u8; 32]);
+pub const ID: Address =
+    Address::new_from_array(pinocchio_pubkey::pubkey!("2zmvAfAG6t839jmhL9uim6yp9WBrSJyqN9TTeuoEQmkE"));
 
 #[cfg(test)]
 mod tests;
