@@ -199,7 +199,7 @@ impl<'a> Initialize<'a> {
         }
         .invoke()?;
 
-        // ---- create the two pool vault ATAs, owned by the config PDA ----
+        // create the two pool vault ATAs, owned by the config PDA
         CreateAta {
             funding_account: self.accounts.admin,
             account: self.accounts.vault_x,
