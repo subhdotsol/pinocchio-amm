@@ -6,7 +6,9 @@ version = 4
 name = "amm"
 version = "0.1.0"
 dependencies = [
+ "constant-product-curve",
  "pinocchio 0.11.2",
+ "pinocchio-associated-token-account",
  "pinocchio-pubkey",
  "pinocchio-system",
  "pinocchio-token",
@@ -27,6 +29,11 @@ name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+
+[[package]]
+name = "constant-product-curve"
+version = "0.1.0"
+source = "git+https://github.com/deanmlittle/constant-product-curve#2a723a0ff5ad522f657f80c053c2bb290da28b70"
 
 [[package]]
 name = "cpufeatures"
@@ -127,6 +134,18 @@ dependencies = [
  "solana-account-view",
  "solana-address",
  "solana-define-syscall 5.1.0",
+ "solana-instruction-view",
+ "solana-program-error",
+]
+
+[[package]]
+name = "pinocchio-associated-token-account"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c552da2a965b33511ac54494e434e69be0ae12da1619a72594b76703c3dca211"
+dependencies = [
+ "solana-account-view",
+ "solana-address",
  "solana-instruction-view",
  "solana-program-error",
 ]

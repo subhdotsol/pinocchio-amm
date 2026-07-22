@@ -12,6 +12,8 @@ pinocchio-pubkey = "0.3.0"
 pinocchio-system = "0.6.1"
 pinocchio-token = "0.6.0"
 thiserror = "2.0.19"
+constant-product-curve = { git = "https://github.com/deanmlittle/constant-product-curve" }
+pinocchio-associated-token-account = "0.4.0"
 
 [features]
 default = ["perf"]
