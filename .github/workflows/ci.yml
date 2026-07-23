@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
   push:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   fmt:
@@ -180,11 +180,23 @@ jobs:
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           cargo build-sbf
 
+      - name: Download SPL Associated Token Account program
+        run: |
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          mkdir -p tests/elfs
+          solana program dump ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL \
+            tests/elfs/spl_associated_token_account.so \
+            --url https://api.mainnet-beta.solana.com
+
       - name: cargo bench
-        run: cargo bench --bench initializer_ix_bench
+        run: |
+          cargo bench --bench initialize_ix_bench
+          cargo bench --bench deposit_ix_bench
+          cargo bench --bench swap_ix_bench
+          cargo bench --bench withdraw_ix_bench
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
-          path: target/benches/compute_units.md
+          path: target/benches/
