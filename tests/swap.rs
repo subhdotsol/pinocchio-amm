@@ -11,14 +11,14 @@ use amm::ID;
 
 // ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
 const ATA_PROGRAM_BYTES: [u8; 32] = [
-    140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131,
-    11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
+    140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218,
+    255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
 ];
 
 // TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
 const TOKEN_PROGRAM_BYTES: [u8; 32] = [
-    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172,
-    28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
+    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237,
+    95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
 ];
 
 fn program_id() -> Address {
@@ -57,8 +57,7 @@ fn create_mint(svm: &mut LiteSVM, payer: &Keypair, decimals: u8) -> Address {
 
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[create_ix, init_ix], Some(&payer.pubkey()), &blockhash);
-    let tx =
-        VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[payer, &mint]).unwrap();
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[payer, &mint]).unwrap();
     svm.send_transaction(tx).expect("create_mint failed");
 
     mint.pubkey()
@@ -132,8 +131,8 @@ fn get_token_balance(svm: &LiteSVM, token_account: &Address) -> u64 {
 fn swap_x_for_y() {
     // step 1: start the VM and load the AMM program
     let mut svm = LiteSVM::new();
-    let program_bytes = std::fs::read("target/deploy/amm.so")
-        .expect("build the program first: cargo build-sbf");
+    let program_bytes =
+        std::fs::read("target/deploy/amm.so").expect("build the program first: cargo build-sbf");
     svm.add_program(program_id(), &program_bytes).unwrap();
 
     // step 2: create a liquidity provider (admin) and a swapper (user)
@@ -155,9 +154,8 @@ fn swap_x_for_y() {
     let fee: u16 = 30; // 0.30%
     let seed_bytes = seed.to_le_bytes();
 
-    let (config_pda, _) =
-        Address::derive_program_address(&[b"config", &seed_bytes], &program_id())
-            .expect("config PDA");
+    let (config_pda, _) = Address::derive_program_address(&[b"config", &seed_bytes], &program_id())
+        .expect("config PDA");
     let (lp_mint, _) =
         Address::derive_program_address(&[b"lp", config_pda.as_ref()], &program_id())
             .expect("lp_mint PDA");
@@ -192,8 +190,7 @@ fn swap_x_for_y() {
         };
         let blockhash = svm.latest_blockhash();
         let msg = Message::new_with_blockhash(&[ix], Some(&admin.pubkey()), &blockhash);
-        let tx =
-            VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&admin]).unwrap();
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&admin]).unwrap();
         svm.send_transaction(tx).expect("initialize failed");
     }
 
@@ -217,8 +214,8 @@ fn swap_x_for_y() {
         let mut data = Vec::with_capacity(25);
         data.push(1u8); // Deposit::DISCRIMINATOR = 1
         data.extend_from_slice(&seed_lp.to_le_bytes()); // lp amount
-        data.extend_from_slice(&seed_x.to_le_bytes());  // max_x
-        data.extend_from_slice(&seed_y.to_le_bytes());  // max_y
+        data.extend_from_slice(&seed_x.to_le_bytes()); // max_x
+        data.extend_from_slice(&seed_y.to_le_bytes()); // max_y
 
         let ix = Instruction {
             program_id: program_id(),
@@ -241,8 +238,7 @@ fn swap_x_for_y() {
         };
         let blockhash = svm.latest_blockhash();
         let msg = Message::new_with_blockhash(&[ix], Some(&admin.pubkey()), &blockhash);
-        let tx =
-            VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&admin]).unwrap();
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&admin]).unwrap();
         svm.send_transaction(tx).expect("seed deposit failed");
     }
 
@@ -254,7 +250,7 @@ fn swap_x_for_y() {
     let user_ata_y = get_associated_token_address(&user.pubkey(), &mint_y);
 
     let swap_amount_in: u64 = 100_000; // 0.10 token X (6 decimals)
-    let min_amount_out: u64 = 1;       // accept any non-zero amount of Y
+    let min_amount_out: u64 = 1; // accept any non-zero amount of Y
 
     mint_tokens(&mut svm, &admin, &admin, mint_x, user_ata_x, swap_amount_in);
 
@@ -296,24 +292,18 @@ fn swap_x_for_y() {
     let ix = Instruction {
         program_id: program_id(),
         accounts: vec![
-            AccountMeta::new(user.pubkey(), true),              // 0. user
-            AccountMeta::new_readonly(mint_x, false),           // 1. mint_x
-            AccountMeta::new_readonly(mint_y, false),           // 2. mint_y
-            AccountMeta::new_readonly(config_pda, false),       // 3. config
-            AccountMeta::new_readonly(lp_mint, false),          // 4. mint_lp (only read for supply)
-            AccountMeta::new(vault_x, false),                   // 5. vault_x
-            AccountMeta::new(vault_y, false),                   // 6. vault_y
-            AccountMeta::new(user_ata_x, false),                // 7. user_ata_x (X leaves)
-            AccountMeta::new(user_ata_y, false),                // 8. user_ata_y (Y arrives)
-            AccountMeta::new_readonly(
-                solana_system_interface::program::ID,
-                false,
-            ),                                                  // 9. system_program
-            AccountMeta::new_readonly(spl_token::ID, false),   // 10. token_program
-            AccountMeta::new_readonly(
-                Address::new_from_array(ATA_PROGRAM_BYTES),
-                false,
-            ),                                                  // 11. ATA program
+            AccountMeta::new(user.pubkey(), true),        // 0. user
+            AccountMeta::new_readonly(mint_x, false),     // 1. mint_x
+            AccountMeta::new_readonly(mint_y, false),     // 2. mint_y
+            AccountMeta::new_readonly(config_pda, false), // 3. config
+            AccountMeta::new_readonly(lp_mint, false),    // 4. mint_lp (only read for supply)
+            AccountMeta::new(vault_x, false),             // 5. vault_x
+            AccountMeta::new(vault_y, false),             // 6. vault_y
+            AccountMeta::new(user_ata_x, false),          // 7. user_ata_x (X leaves)
+            AccountMeta::new(user_ata_y, false),          // 8. user_ata_y (Y arrives)
+            AccountMeta::new_readonly(solana_system_interface::program::ID, false), // 9. system_program
+            AccountMeta::new_readonly(spl_token::ID, false), // 10. token_program
+            AccountMeta::new_readonly(Address::new_from_array(ATA_PROGRAM_BYTES), false), // 11. ATA program
         ],
         data,
     };

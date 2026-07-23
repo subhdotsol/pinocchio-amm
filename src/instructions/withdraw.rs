@@ -139,7 +139,11 @@ impl<'a> TryFrom<&'a [u8]> for WithdrawInstructionData {
             return Err(AmmError::InvalidAmount.into());
         }
 
-        Ok(Self { amount, min_x, min_y })
+        Ok(Self {
+            amount,
+            min_x,
+            min_y,
+        })
     }
 }
 

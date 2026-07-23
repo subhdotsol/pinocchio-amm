@@ -1,5 +1,5 @@
 use amm::constants::{CONFIG_SEED, LP_SEED};
-use mollusk_svm::{program, Mollusk};
+use mollusk_svm::{Mollusk, program};
 use mollusk_svm_bencher::MolluskComputeUnitBencher;
 use solana_sdk::{
     account::{Account, WritableAccount},
@@ -118,10 +118,8 @@ fn main() {
     )
     .unwrap();
 
-    let (config_pda, config_bump) = Pubkey::find_program_address(
-        &[CONFIG_SEED, &seed.to_le_bytes()],
-        &program_id,
-    );
+    let (config_pda, config_bump) =
+        Pubkey::find_program_address(&[CONFIG_SEED, &seed.to_le_bytes()], &program_id);
 
     let (lp_pda, lp_bump) =
         Pubkey::find_program_address(&[LP_SEED, config_pda.as_ref()], &program_id);
@@ -140,7 +138,9 @@ fn main() {
         CONFIG_LEN,
         &program_id,
     );
-    config_account.data_as_mut_slice().copy_from_slice(&config_data);
+    config_account
+        .data_as_mut_slice()
+        .copy_from_slice(&config_data);
 
     // LP mint: supply = 100_000 (pool has existing liquidity)
     let mut lp_mint_account = Account::new(

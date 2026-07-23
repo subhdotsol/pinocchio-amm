@@ -1,5 +1,5 @@
 use amm::constants::{CONFIG_SEED, LP_SEED};
-use mollusk_svm::{program, Mollusk};
+use mollusk_svm::{Mollusk, program};
 use mollusk_svm_bencher::MolluskComputeUnitBencher;
 use solana_sdk::{
     account::{Account, WritableAccount},
@@ -78,29 +78,19 @@ fn main() {
     )
     .unwrap();
 
-    let (config_pda, _config_bump) = Pubkey::find_program_address(
-        &[CONFIG_SEED, &seed.to_le_bytes()],
-        &program_id,
-    );
+    let (config_pda, _config_bump) =
+        Pubkey::find_program_address(&[CONFIG_SEED, &seed.to_le_bytes()], &program_id);
 
     let (lp_pda, _lp_bump) =
         Pubkey::find_program_address(&[LP_SEED, config_pda.as_ref()], &program_id);
 
     // ATA seeds: [owner, token_program, mint]
     let (vault_x, _) = Pubkey::find_program_address(
-        &[
-            config_pda.as_ref(),
-            spl_token::ID.as_ref(),
-            mint_x.as_ref(),
-        ],
+        &[config_pda.as_ref(), spl_token::ID.as_ref(), mint_x.as_ref()],
         &ata_program_id,
     );
     let (vault_y, _) = Pubkey::find_program_address(
-        &[
-            config_pda.as_ref(),
-            spl_token::ID.as_ref(),
-            mint_y.as_ref(),
-        ],
+        &[config_pda.as_ref(), spl_token::ID.as_ref(), mint_y.as_ref()],
         &ata_program_id,
     );
 

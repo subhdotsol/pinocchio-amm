@@ -11,14 +11,14 @@ use amm::ID;
 
 // ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
 const ATA_PROGRAM_BYTES: [u8; 32] = [
-    140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131,
-    11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
+    140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218,
+    255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
 ];
 
 // TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
 const TOKEN_PROGRAM_BYTES: [u8; 32] = [
-    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172,
-    28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
+    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237,
+    95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
 ];
 
 fn program_id() -> Address {
@@ -69,8 +69,8 @@ fn create_mint(svm: &mut LiteSVM, payer: &Keypair, decimals: u8) -> Address {
 fn initialize_creates_pool() {
     let mut svm = LiteSVM::new();
 
-    let program_bytes = std::fs::read("target/deploy/amm.so")
-        .expect("build the program first: cargo build-sbf");
+    let program_bytes =
+        std::fs::read("target/deploy/amm.so").expect("build the program first: cargo build-sbf");
     svm.add_program(program_id(), &program_bytes).unwrap();
 
     let admin = Keypair::new();
@@ -83,17 +83,12 @@ fn initialize_creates_pool() {
     let fee: u16 = 30; // 0.30%
 
     let seed_bytes = seed.to_le_bytes();
-    let (config_pda, _) = Address::derive_program_address(
-        &[b"config", &seed_bytes],
-        &program_id(),
-    )
-    .expect("failed to derive config PDA");
+    let (config_pda, _) = Address::derive_program_address(&[b"config", &seed_bytes], &program_id())
+        .expect("failed to derive config PDA");
 
-    let (lp_mint, _) = Address::derive_program_address(
-        &[b"lp", config_pda.as_ref()],
-        &program_id(),
-    )
-    .expect("failed to derive lp PDA");
+    let (lp_mint, _) =
+        Address::derive_program_address(&[b"lp", config_pda.as_ref()], &program_id())
+            .expect("failed to derive lp PDA");
 
     let vault_x = get_associated_token_address(&config_pda, &mint_x);
     let vault_y = get_associated_token_address(&config_pda, &mint_y);
@@ -132,8 +127,5 @@ fn initialize_creates_pool() {
         .get_account(&config_pda)
         .expect("config account should exist");
     assert_eq!(config_account.owner, program_id());
-    assert_eq!(
-        config_account.data.len(),
-        amm::state::Config::LEN
-    );
+    assert_eq!(config_account.data.len(), amm::state::Config::LEN);
 }

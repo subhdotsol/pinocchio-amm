@@ -11,14 +11,14 @@ use amm::ID;
 
 // ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
 const ATA_PROGRAM_BYTES: [u8; 32] = [
-    140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131,
-    11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
+    140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218,
+    255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
 ];
 
 // TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
 const TOKEN_PROGRAM_BYTES: [u8; 32] = [
-    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172,
-    28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
+    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237,
+    95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
 ];
 
 fn program_id() -> Address {
@@ -150,8 +150,8 @@ fn deposit_adds_liquidity() {
     // LiteSVM runs Solana BPF programs natively — no validator needed.
     // SPL Token and ATA programs are bundled in LiteSVM::new() by default.
     let mut svm = LiteSVM::new();
-    let program_bytes = std::fs::read("target/deploy/amm.so")
-        .expect("build the program first: cargo build-sbf");
+    let program_bytes =
+        std::fs::read("target/deploy/amm.so").expect("build the program first: cargo build-sbf");
     svm.add_program(program_id(), &program_bytes).unwrap();
 
     // step 2: create keypairs and give them SOL
@@ -176,9 +176,8 @@ fn deposit_adds_liquidity() {
     let fee: u16 = 30; // 0.30%
     let seed_bytes = seed.to_le_bytes();
 
-    let (config_pda, _) =
-        Address::derive_program_address(&[b"config", &seed_bytes], &program_id())
-            .expect("config PDA derivation failed");
+    let (config_pda, _) = Address::derive_program_address(&[b"config", &seed_bytes], &program_id())
+        .expect("config PDA derivation failed");
 
     let (lp_mint, _) =
         Address::derive_program_address(&[b"lp", config_pda.as_ref()], &program_id())
@@ -219,8 +218,7 @@ fn deposit_adds_liquidity() {
 
         let blockhash = svm.latest_blockhash();
         let msg = Message::new_with_blockhash(&[ix], Some(&admin.pubkey()), &blockhash);
-        let tx =
-            VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&admin]).unwrap();
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&admin]).unwrap();
         svm.send_transaction(tx).expect("initialize failed");
     }
 
@@ -243,7 +241,7 @@ fn deposit_adds_liquidity() {
     // The user needs tokens to deposit; we give them exactly 1.0 of each (6 decimals).
     let deposit_x: u64 = 1_000_000; // 1.000000 token X
     let deposit_y: u64 = 1_000_000; // 1.000000 token Y
-    let lp_amount: u64 = 1_000;     // LP tokens to receive in return
+    let lp_amount: u64 = 1_000; // LP tokens to receive in return
 
     mint_tokens(&mut svm, &admin, &admin, mint_x, user_ata_x, deposit_x);
     mint_tokens(&mut svm, &admin, &admin, mint_y, user_ata_y, deposit_y);
@@ -260,9 +258,9 @@ fn deposit_adds_liquidity() {
     // The slippage check (x <= max_x, y <= max_y) trivially passes in this case.
     let mut data = Vec::with_capacity(25);
     data.push(1u8); // Deposit::DISCRIMINATOR = 1
-    data.extend_from_slice(&lp_amount.to_le_bytes());  // amount (LP tokens to mint)
-    data.extend_from_slice(&deposit_x.to_le_bytes());  // max_x
-    data.extend_from_slice(&deposit_y.to_le_bytes());  // max_y
+    data.extend_from_slice(&lp_amount.to_le_bytes()); // amount (LP tokens to mint)
+    data.extend_from_slice(&deposit_x.to_le_bytes()); // max_x
+    data.extend_from_slice(&deposit_y.to_le_bytes()); // max_y
 
     // step 9: build the deposit instruction with all 12 accounts
     // Order must exactly match DepositAccounts::try_from in src/instructions/deposit.rs.
@@ -283,27 +281,21 @@ fn deposit_adds_liquidity() {
     let ix = Instruction {
         program_id: program_id(),
         accounts: vec![
-            AccountMeta::new(user.pubkey(), true),              // 0. user
-            AccountMeta::new_readonly(mint_x, false),           // 1. mint_x
-            AccountMeta::new_readonly(mint_y, false),           // 2. mint_y
-            AccountMeta::new_readonly(config_pda, false),       // 3. config
-            AccountMeta::new(lp_mint, false),                   // 4. mint_lp
-            AccountMeta::new(vault_x, false),                   // 5. vault_x
-            AccountMeta::new(vault_y, false),                   // 6. vault_y
-            AccountMeta::new(user_ata_x, false),                // 7. user_ata_x
-            AccountMeta::new(user_ata_y, false),                // 8. user_ata_y
-            AccountMeta::new(user_ata_lp, false),               // 9. user_ata_lp
-            AccountMeta::new_readonly(
-                solana_system_interface::program::ID,
-                false,
-            ),                                                  // 10. system_program
-            AccountMeta::new_readonly(spl_token::ID, false),   // 11. token_program
+            AccountMeta::new(user.pubkey(), true),        // 0. user
+            AccountMeta::new_readonly(mint_x, false),     // 1. mint_x
+            AccountMeta::new_readonly(mint_y, false),     // 2. mint_y
+            AccountMeta::new_readonly(config_pda, false), // 3. config
+            AccountMeta::new(lp_mint, false),             // 4. mint_lp
+            AccountMeta::new(vault_x, false),             // 5. vault_x
+            AccountMeta::new(vault_y, false),             // 6. vault_y
+            AccountMeta::new(user_ata_x, false),          // 7. user_ata_x
+            AccountMeta::new(user_ata_y, false),          // 8. user_ata_y
+            AccountMeta::new(user_ata_lp, false),         // 9. user_ata_lp
+            AccountMeta::new_readonly(solana_system_interface::program::ID, false), // 10. system_program
+            AccountMeta::new_readonly(spl_token::ID, false), // 11. token_program
             // 12. ATA program — must be present in the outer transaction for the
             // CreateIdempotent CPI (deposit → ATA program) to resolve the callee.
-            AccountMeta::new_readonly(
-                Address::new_from_array(ATA_PROGRAM_BYTES),
-                false,
-            ),
+            AccountMeta::new_readonly(Address::new_from_array(ATA_PROGRAM_BYTES), false),
         ],
         data,
     };

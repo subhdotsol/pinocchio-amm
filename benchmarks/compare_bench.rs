@@ -1,4 +1,4 @@
-use mollusk_svm::{program, Mollusk};
+use mollusk_svm::{Mollusk, program};
 use solana_sdk::{
     account::{Account, WritableAccount},
     instruction::{AccountMeta, Instruction},
@@ -110,9 +110,16 @@ fn main() {
         &token_program,
     );
     Pack::pack(
-        Mint { mint_authority: COption::None, supply: 100_000_000, decimals: 6, is_initialized: true, freeze_authority: COption::None },
+        Mint {
+            mint_authority: COption::None,
+            supply: 100_000_000,
+            decimals: 6,
+            is_initialized: true,
+            freeze_authority: COption::None,
+        },
         mint_x_account.data_as_mut_slice(),
-    ).unwrap();
+    )
+    .unwrap();
 
     let mut mint_y_account = Account::new(
         p_mollusk.sysvars.rent.minimum_balance(Mint::LEN),
@@ -120,9 +127,16 @@ fn main() {
         &token_program,
     );
     Pack::pack(
-        Mint { mint_authority: COption::None, supply: 100_000_000, decimals: 6, is_initialized: true, freeze_authority: COption::None },
+        Mint {
+            mint_authority: COption::None,
+            supply: 100_000_000,
+            decimals: 6,
+            is_initialized: true,
+            freeze_authority: COption::None,
+        },
         mint_y_account.data_as_mut_slice(),
-    ).unwrap();
+    )
+    .unwrap();
 
     let (p_config_pda, p_config_bump) =
         Pubkey::find_program_address(&[b"config", &seed.to_le_bytes()], &p_program_id);
@@ -179,18 +193,52 @@ fn main() {
     p_config_data[107] = p_config_bump;
     p_config_data[108] = p_lp_bump;
     let mut p_config_account = Account::new(
-        p_mollusk.sysvars.rent.minimum_balance(P_CONFIG_LEN), P_CONFIG_LEN, &p_program_id,
+        p_mollusk.sysvars.rent.minimum_balance(P_CONFIG_LEN),
+        P_CONFIG_LEN,
+        &p_program_id,
     );
-    p_config_account.data_as_mut_slice().copy_from_slice(&p_config_data);
+    p_config_account
+        .data_as_mut_slice()
+        .copy_from_slice(&p_config_data);
 
-    let mut p_lp_mint_0 = Account::new(p_mollusk.sysvars.rent.minimum_balance(Mint::LEN), Mint::LEN, &token_program);
-    Pack::pack(Mint { mint_authority: COption::Some(p_config_pda), supply: 0, decimals: 6, is_initialized: true, freeze_authority: COption::None }, p_lp_mint_0.data_as_mut_slice()).unwrap();
+    let mut p_lp_mint_0 = Account::new(
+        p_mollusk.sysvars.rent.minimum_balance(Mint::LEN),
+        Mint::LEN,
+        &token_program,
+    );
+    Pack::pack(
+        Mint {
+            mint_authority: COption::Some(p_config_pda),
+            supply: 0,
+            decimals: 6,
+            is_initialized: true,
+            freeze_authority: COption::None,
+        },
+        p_lp_mint_0.data_as_mut_slice(),
+    )
+    .unwrap();
 
-    let mut p_lp_mint_100k = Account::new(p_mollusk.sysvars.rent.minimum_balance(Mint::LEN), Mint::LEN, &token_program);
-    Pack::pack(Mint { mint_authority: COption::Some(p_config_pda), supply: 100_000, decimals: 6, is_initialized: true, freeze_authority: COption::None }, p_lp_mint_100k.data_as_mut_slice()).unwrap();
+    let mut p_lp_mint_100k = Account::new(
+        p_mollusk.sysvars.rent.minimum_balance(Mint::LEN),
+        Mint::LEN,
+        &token_program,
+    );
+    Pack::pack(
+        Mint {
+            mint_authority: COption::Some(p_config_pda),
+            supply: 100_000,
+            decimals: 6,
+            is_initialized: true,
+            freeze_authority: COption::None,
+        },
+        p_lp_mint_100k.data_as_mut_slice(),
+    )
+    .unwrap();
 
-    let p_vault_x_account = make_token_account(&p_mollusk, mint_x, p_config_pda, 100_000, token_program);
-    let p_vault_y_account = make_token_account(&p_mollusk, mint_y, p_config_pda, 100_000, token_program);
+    let p_vault_x_account =
+        make_token_account(&p_mollusk, mint_x, p_config_pda, 100_000, token_program);
+    let p_vault_y_account =
+        make_token_account(&p_mollusk, mint_y, p_config_pda, 100_000, token_program);
 
     let p_user = Pubkey::new_unique();
     let p_user_account = Account::new(10_000_000_000, 0, &system_program);
@@ -216,7 +264,13 @@ fn main() {
             AccountMeta::new_readonly(token_program, false),
             AccountMeta::new_readonly(ata_program_id, false),
         ],
-        data: { let mut d = vec![P_DEPOSIT]; d.extend_from_slice(&100_000u64.to_le_bytes()); d.extend_from_slice(&50_000u64.to_le_bytes()); d.extend_from_slice(&50_000u64.to_le_bytes()); d },
+        data: {
+            let mut d = vec![P_DEPOSIT];
+            d.extend_from_slice(&100_000u64.to_le_bytes());
+            d.extend_from_slice(&50_000u64.to_le_bytes());
+            d.extend_from_slice(&50_000u64.to_le_bytes());
+            d
+        },
     };
     let p_vault_x_empty = make_token_account(&p_mollusk, mint_x, p_config_pda, 0, token_program);
     let p_vault_y_empty = make_token_account(&p_mollusk, mint_y, p_config_pda, 0, token_program);
@@ -228,9 +282,18 @@ fn main() {
         (p_lp_pda, p_lp_mint_0.clone()),
         (p_vault_x, p_vault_x_empty),
         (p_vault_y, p_vault_y_empty),
-        (p_user_ata_x, make_token_account(&p_mollusk, mint_x, p_user, 100_000, token_program)),
-        (p_user_ata_y, make_token_account(&p_mollusk, mint_y, p_user, 100_000, token_program)),
-        (p_user_ata_lp, make_token_account(&p_mollusk, p_lp_pda, p_user, 0, token_program)),
+        (
+            p_user_ata_x,
+            make_token_account(&p_mollusk, mint_x, p_user, 100_000, token_program),
+        ),
+        (
+            p_user_ata_y,
+            make_token_account(&p_mollusk, mint_y, p_user, 100_000, token_program),
+        ),
+        (
+            p_user_ata_lp,
+            make_token_account(&p_mollusk, p_lp_pda, p_user, 0, token_program),
+        ),
         (system_program, system_program_account.clone()),
         (token_program, token_program_account.clone()),
         (ata_program_id, ata_program_account.clone()),
@@ -253,7 +316,12 @@ fn main() {
             AccountMeta::new_readonly(token_program, false),
             AccountMeta::new_readonly(ata_program_id, false),
         ],
-        data: { let mut d = vec![P_SWAP, 1u8]; d.extend_from_slice(&10_000u64.to_le_bytes()); d.extend_from_slice(&1u64.to_le_bytes()); d },
+        data: {
+            let mut d = vec![P_SWAP, 1u8];
+            d.extend_from_slice(&10_000u64.to_le_bytes());
+            d.extend_from_slice(&1u64.to_le_bytes());
+            d
+        },
     };
     let p_swap_accounts = vec![
         (p_user, p_user_account.clone()),
@@ -263,8 +331,14 @@ fn main() {
         (p_lp_pda, p_lp_mint_100k.clone()),
         (p_vault_x, p_vault_x_account.clone()),
         (p_vault_y, p_vault_y_account.clone()),
-        (p_user_ata_x, make_token_account(&p_mollusk, mint_x, p_user, 100_000, token_program)),
-        (p_user_ata_y, make_token_account(&p_mollusk, mint_y, p_user, 0, token_program)),
+        (
+            p_user_ata_x,
+            make_token_account(&p_mollusk, mint_x, p_user, 100_000, token_program),
+        ),
+        (
+            p_user_ata_y,
+            make_token_account(&p_mollusk, mint_y, p_user, 0, token_program),
+        ),
         (system_program, system_program_account.clone()),
         (token_program, token_program_account.clone()),
         (ata_program_id, ata_program_account.clone()),
@@ -288,7 +362,13 @@ fn main() {
             AccountMeta::new_readonly(token_program, false),
             AccountMeta::new_readonly(ata_program_id, false),
         ],
-        data: { let mut d = vec![P_WITHDRAW]; d.extend_from_slice(&10_000u64.to_le_bytes()); d.extend_from_slice(&0u64.to_le_bytes()); d.extend_from_slice(&0u64.to_le_bytes()); d },
+        data: {
+            let mut d = vec![P_WITHDRAW];
+            d.extend_from_slice(&10_000u64.to_le_bytes());
+            d.extend_from_slice(&0u64.to_le_bytes());
+            d.extend_from_slice(&0u64.to_le_bytes());
+            d
+        },
     };
     let p_withdraw_accounts = vec![
         (p_user, p_user_account.clone()),
@@ -298,9 +378,18 @@ fn main() {
         (p_lp_pda, p_lp_mint_100k.clone()),
         (p_vault_x, p_vault_x_account.clone()),
         (p_vault_y, p_vault_y_account.clone()),
-        (p_user_ata_x, make_token_account(&p_mollusk, mint_x, p_user, 0, token_program)),
-        (p_user_ata_y, make_token_account(&p_mollusk, mint_y, p_user, 0, token_program)),
-        (p_user_ata_lp, make_token_account(&p_mollusk, p_lp_pda, p_user, 50_000, token_program)),
+        (
+            p_user_ata_x,
+            make_token_account(&p_mollusk, mint_x, p_user, 0, token_program),
+        ),
+        (
+            p_user_ata_y,
+            make_token_account(&p_mollusk, mint_y, p_user, 0, token_program),
+        ),
+        (
+            p_user_ata_lp,
+            make_token_account(&p_mollusk, p_lp_pda, p_user, 50_000, token_program),
+        ),
         (system_program, system_program_account.clone()),
         (token_program, token_program_account.clone()),
         (ata_program_id, ata_program_account.clone()),
@@ -370,18 +459,52 @@ fn main() {
     a_config_data[84] = a_config_bump;
     a_config_data[85] = a_lp_bump;
     let mut a_config_account = Account::new(
-        a_mollusk.sysvars.rent.minimum_balance(A_CONFIG_LEN), A_CONFIG_LEN, &a_program_id,
+        a_mollusk.sysvars.rent.minimum_balance(A_CONFIG_LEN),
+        A_CONFIG_LEN,
+        &a_program_id,
     );
-    a_config_account.data_as_mut_slice().copy_from_slice(&a_config_data);
+    a_config_account
+        .data_as_mut_slice()
+        .copy_from_slice(&a_config_data);
 
-    let mut a_lp_mint_0 = Account::new(a_mollusk.sysvars.rent.minimum_balance(Mint::LEN), Mint::LEN, &token_program);
-    Pack::pack(Mint { mint_authority: COption::Some(a_config_pda), supply: 0, decimals: 6, is_initialized: true, freeze_authority: COption::None }, a_lp_mint_0.data_as_mut_slice()).unwrap();
+    let mut a_lp_mint_0 = Account::new(
+        a_mollusk.sysvars.rent.minimum_balance(Mint::LEN),
+        Mint::LEN,
+        &token_program,
+    );
+    Pack::pack(
+        Mint {
+            mint_authority: COption::Some(a_config_pda),
+            supply: 0,
+            decimals: 6,
+            is_initialized: true,
+            freeze_authority: COption::None,
+        },
+        a_lp_mint_0.data_as_mut_slice(),
+    )
+    .unwrap();
 
-    let mut a_lp_mint_100k = Account::new(a_mollusk.sysvars.rent.minimum_balance(Mint::LEN), Mint::LEN, &token_program);
-    Pack::pack(Mint { mint_authority: COption::Some(a_config_pda), supply: 100_000, decimals: 6, is_initialized: true, freeze_authority: COption::None }, a_lp_mint_100k.data_as_mut_slice()).unwrap();
+    let mut a_lp_mint_100k = Account::new(
+        a_mollusk.sysvars.rent.minimum_balance(Mint::LEN),
+        Mint::LEN,
+        &token_program,
+    );
+    Pack::pack(
+        Mint {
+            mint_authority: COption::Some(a_config_pda),
+            supply: 100_000,
+            decimals: 6,
+            is_initialized: true,
+            freeze_authority: COption::None,
+        },
+        a_lp_mint_100k.data_as_mut_slice(),
+    )
+    .unwrap();
 
-    let a_vault_x_account = make_token_account(&a_mollusk, mint_x, a_config_pda, 100_000, token_program);
-    let a_vault_y_account = make_token_account(&a_mollusk, mint_y, a_config_pda, 100_000, token_program);
+    let a_vault_x_account =
+        make_token_account(&a_mollusk, mint_x, a_config_pda, 100_000, token_program);
+    let a_vault_y_account =
+        make_token_account(&a_mollusk, mint_y, a_config_pda, 100_000, token_program);
 
     let a_user = Pubkey::new_unique();
     let a_user_account = Account::new(10_000_000_000, 0, &system_program);
@@ -407,7 +530,13 @@ fn main() {
             AccountMeta::new_readonly(ata_program_id, false),
             AccountMeta::new_readonly(system_program, false),
         ],
-        data: { let mut d = A_DEPOSIT_DISC.to_vec(); d.extend_from_slice(&100_000u64.to_le_bytes()); d.extend_from_slice(&50_000u64.to_le_bytes()); d.extend_from_slice(&50_000u64.to_le_bytes()); d },
+        data: {
+            let mut d = A_DEPOSIT_DISC.to_vec();
+            d.extend_from_slice(&100_000u64.to_le_bytes());
+            d.extend_from_slice(&50_000u64.to_le_bytes());
+            d.extend_from_slice(&50_000u64.to_le_bytes());
+            d
+        },
     };
     let a_vault_x_empty = make_token_account(&a_mollusk, mint_x, a_config_pda, 0, token_program);
     let a_vault_y_empty = make_token_account(&a_mollusk, mint_y, a_config_pda, 0, token_program);
@@ -419,9 +548,18 @@ fn main() {
         (a_lp_pda, a_lp_mint_0.clone()),
         (a_vault_x, a_vault_x_empty),
         (a_vault_y, a_vault_y_empty),
-        (a_user_ata_x, make_token_account(&a_mollusk, mint_x, a_user, 100_000, token_program)),
-        (a_user_ata_y, make_token_account(&a_mollusk, mint_y, a_user, 100_000, token_program)),
-        (a_user_ata_lp, make_token_account(&a_mollusk, a_lp_pda, a_user, 0, token_program)),
+        (
+            a_user_ata_x,
+            make_token_account(&a_mollusk, mint_x, a_user, 100_000, token_program),
+        ),
+        (
+            a_user_ata_y,
+            make_token_account(&a_mollusk, mint_y, a_user, 100_000, token_program),
+        ),
+        (
+            a_user_ata_lp,
+            make_token_account(&a_mollusk, a_lp_pda, a_user, 0, token_program),
+        ),
         (token_program, token_program_account.clone()),
         (ata_program_id, ata_program_account.clone()),
         (system_program, system_program_account.clone()),
@@ -444,7 +582,13 @@ fn main() {
             AccountMeta::new_readonly(ata_program_id, false),
             AccountMeta::new_readonly(system_program, false),
         ],
-        data: { let mut d = A_SWAP_DISC.to_vec(); d.push(1u8); d.extend_from_slice(&10_000u64.to_le_bytes()); d.extend_from_slice(&1u64.to_le_bytes()); d },
+        data: {
+            let mut d = A_SWAP_DISC.to_vec();
+            d.push(1u8);
+            d.extend_from_slice(&10_000u64.to_le_bytes());
+            d.extend_from_slice(&1u64.to_le_bytes());
+            d
+        },
     };
     let a_swap_accounts = vec![
         (a_user, a_user_account.clone()),
@@ -454,8 +598,14 @@ fn main() {
         (a_lp_pda, a_lp_mint_100k.clone()),
         (a_vault_x, a_vault_x_account.clone()),
         (a_vault_y, a_vault_y_account.clone()),
-        (a_user_ata_x, make_token_account(&a_mollusk, mint_x, a_user, 100_000, token_program)),
-        (a_user_ata_y, make_token_account(&a_mollusk, mint_y, a_user, 0, token_program)),
+        (
+            a_user_ata_x,
+            make_token_account(&a_mollusk, mint_x, a_user, 100_000, token_program),
+        ),
+        (
+            a_user_ata_y,
+            make_token_account(&a_mollusk, mint_y, a_user, 0, token_program),
+        ),
         (token_program, token_program_account.clone()),
         (ata_program_id, ata_program_account.clone()),
         (system_program, system_program_account.clone()),
@@ -479,7 +629,13 @@ fn main() {
             AccountMeta::new_readonly(ata_program_id, false),
             AccountMeta::new_readonly(system_program, false),
         ],
-        data: { let mut d = A_WITHDRAW_DISC.to_vec(); d.extend_from_slice(&10_000u64.to_le_bytes()); d.extend_from_slice(&0u64.to_le_bytes()); d.extend_from_slice(&0u64.to_le_bytes()); d },
+        data: {
+            let mut d = A_WITHDRAW_DISC.to_vec();
+            d.extend_from_slice(&10_000u64.to_le_bytes());
+            d.extend_from_slice(&0u64.to_le_bytes());
+            d.extend_from_slice(&0u64.to_le_bytes());
+            d
+        },
     };
     let a_withdraw_accounts = vec![
         (a_user, a_user_account.clone()),
@@ -489,23 +645,62 @@ fn main() {
         (a_lp_pda, a_lp_mint_100k.clone()),
         (a_vault_x, a_vault_x_account.clone()),
         (a_vault_y, a_vault_y_account.clone()),
-        (a_user_ata_x, make_token_account(&a_mollusk, mint_x, a_user, 0, token_program)),
-        (a_user_ata_y, make_token_account(&a_mollusk, mint_y, a_user, 0, token_program)),
-        (a_user_ata_lp, make_token_account(&a_mollusk, a_lp_pda, a_user, 50_000, token_program)),
+        (
+            a_user_ata_x,
+            make_token_account(&a_mollusk, mint_x, a_user, 0, token_program),
+        ),
+        (
+            a_user_ata_y,
+            make_token_account(&a_mollusk, mint_y, a_user, 0, token_program),
+        ),
+        (
+            a_user_ata_lp,
+            make_token_account(&a_mollusk, a_lp_pda, a_user, 50_000, token_program),
+        ),
         (token_program, token_program_account.clone()),
         (ata_program_id, ata_program_account.clone()),
         (system_program, system_program_account.clone()),
     ];
 
-    let p_init_cu   = run(&p_mollusk, "pinocchio::initialize", &p_init_ix,    &p_init_accounts);
-    let p_dep_cu    = run(&p_mollusk, "pinocchio::deposit",    &p_deposit_ix,  &p_deposit_accounts);
-    let p_swap_cu   = run(&p_mollusk, "pinocchio::swap",       &p_swap_ix,     &p_swap_accounts);
-    let p_with_cu   = run(&p_mollusk, "pinocchio::withdraw",   &p_withdraw_ix, &p_withdraw_accounts);
+    let p_init_cu = run(
+        &p_mollusk,
+        "pinocchio::initialize",
+        &p_init_ix,
+        &p_init_accounts,
+    );
+    let p_dep_cu = run(
+        &p_mollusk,
+        "pinocchio::deposit",
+        &p_deposit_ix,
+        &p_deposit_accounts,
+    );
+    let p_swap_cu = run(&p_mollusk, "pinocchio::swap", &p_swap_ix, &p_swap_accounts);
+    let p_with_cu = run(
+        &p_mollusk,
+        "pinocchio::withdraw",
+        &p_withdraw_ix,
+        &p_withdraw_accounts,
+    );
 
-    let a_init_cu   = run(&a_mollusk, "anchor::initialize",    &a_init_ix,     &a_init_accounts);
-    let a_dep_cu    = run(&a_mollusk, "anchor::deposit",       &a_deposit_ix,  &a_deposit_accounts);
-    let a_swap_cu   = run(&a_mollusk, "anchor::swap",          &a_swap_ix,     &a_swap_accounts);
-    let a_with_cu   = run(&a_mollusk, "anchor::withdraw",      &a_withdraw_ix, &a_withdraw_accounts);
+    let a_init_cu = run(
+        &a_mollusk,
+        "anchor::initialize",
+        &a_init_ix,
+        &a_init_accounts,
+    );
+    let a_dep_cu = run(
+        &a_mollusk,
+        "anchor::deposit",
+        &a_deposit_ix,
+        &a_deposit_accounts,
+    );
+    let a_swap_cu = run(&a_mollusk, "anchor::swap", &a_swap_ix, &a_swap_accounts);
+    let a_with_cu = run(
+        &a_mollusk,
+        "anchor::withdraw",
+        &a_withdraw_ix,
+        &a_withdraw_accounts,
+    );
 
     fn savings(pinocchio: u64, anchor: u64) -> String {
         let pct = (anchor as f64 - pinocchio as f64) / anchor as f64 * 100.0;
@@ -520,10 +715,18 @@ fn main() {
          | deposit     | {:>14} | {:>11} | {:>10} |\n\
          | swap        | {:>14} | {:>11} | {:>10} |\n\
          | withdraw    | {:>14} | {:>11} | {:>10} |\n",
-        p_init_cu, a_init_cu, savings(p_init_cu, a_init_cu),
-        p_dep_cu,  a_dep_cu,  savings(p_dep_cu,  a_dep_cu),
-        p_swap_cu, a_swap_cu, savings(p_swap_cu, a_swap_cu),
-        p_with_cu, a_with_cu, savings(p_with_cu, a_with_cu),
+        p_init_cu,
+        a_init_cu,
+        savings(p_init_cu, a_init_cu),
+        p_dep_cu,
+        a_dep_cu,
+        savings(p_dep_cu, a_dep_cu),
+        p_swap_cu,
+        a_swap_cu,
+        savings(p_swap_cu, a_swap_cu),
+        p_with_cu,
+        a_with_cu,
+        savings(p_with_cu, a_with_cu),
     );
 
     println!("\n{md}");

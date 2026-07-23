@@ -11,14 +11,14 @@ use amm::ID;
 
 // ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL
 const ATA_PROGRAM_BYTES: [u8; 32] = [
-    140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131,
-    11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
+    140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218,
+    255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89,
 ];
 
 // TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
 const TOKEN_PROGRAM_BYTES: [u8; 32] = [
-    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172,
-    28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
+    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237,
+    95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
 ];
 
 fn program_id() -> Address {
@@ -57,8 +57,7 @@ fn create_mint(svm: &mut LiteSVM, payer: &Keypair, decimals: u8) -> Address {
 
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[create_ix, init_ix], Some(&payer.pubkey()), &blockhash);
-    let tx =
-        VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[payer, &mint]).unwrap();
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[payer, &mint]).unwrap();
     svm.send_transaction(tx).expect("create_mint failed");
 
     mint.pubkey()
@@ -132,8 +131,8 @@ fn get_token_balance(svm: &LiteSVM, token_account: &Address) -> u64 {
 fn withdraw_returns_liquidity() {
     // step 1: start the VM and load the AMM program
     let mut svm = LiteSVM::new();
-    let program_bytes = std::fs::read("target/deploy/amm.so")
-        .expect("build the program first: cargo build-sbf");
+    let program_bytes =
+        std::fs::read("target/deploy/amm.so").expect("build the program first: cargo build-sbf");
     svm.add_program(program_id(), &program_bytes).unwrap();
 
     // step 2: create a user keypair; user will deposit and then withdraw
@@ -149,9 +148,8 @@ fn withdraw_returns_liquidity() {
     let fee: u16 = 30; // 0.30%
     let seed_bytes = seed.to_le_bytes();
 
-    let (config_pda, _) =
-        Address::derive_program_address(&[b"config", &seed_bytes], &program_id())
-            .expect("config PDA");
+    let (config_pda, _) = Address::derive_program_address(&[b"config", &seed_bytes], &program_id())
+        .expect("config PDA");
     let (lp_mint, _) =
         Address::derive_program_address(&[b"lp", config_pda.as_ref()], &program_id())
             .expect("lp_mint PDA");
@@ -184,8 +182,7 @@ fn withdraw_returns_liquidity() {
         };
         let blockhash = svm.latest_blockhash();
         let msg = Message::new_with_blockhash(&[ix], Some(&user.pubkey()), &blockhash);
-        let tx =
-            VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&user]).unwrap();
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&user]).unwrap();
         svm.send_transaction(tx).expect("initialize failed");
     }
 
@@ -202,7 +199,7 @@ fn withdraw_returns_liquidity() {
 
     let deposit_x: u64 = 1_000_000; // 1.000000 token X
     let deposit_y: u64 = 1_000_000; // 1.000000 token Y
-    let lp_amount: u64 = 1_000;     // LP tokens to mint
+    let lp_amount: u64 = 1_000; // LP tokens to mint
 
     mint_tokens(&mut svm, &user, &user, mint_x, user_ata_x, deposit_x);
     mint_tokens(&mut svm, &user, &user, mint_y, user_ata_y, deposit_y);
@@ -243,8 +240,7 @@ fn withdraw_returns_liquidity() {
         };
         let blockhash = svm.latest_blockhash();
         let msg = Message::new_with_blockhash(&[ix], Some(&user.pubkey()), &blockhash);
-        let tx =
-            VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&user]).unwrap();
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&user]).unwrap();
         svm.send_transaction(tx).expect("deposit failed");
     }
 
@@ -264,7 +260,7 @@ fn withdraw_returns_liquidity() {
     //   x_out = vault_x * withdraw_amount / lp_supply = 1_000_000 * 500 / 1_000 = 500_000
     //   y_out = vault_y * withdraw_amount / lp_supply = 1_000_000 * 500 / 1_000 = 500_000
     let withdraw_amount: u64 = 500; // burn half the LP supply
-    let min_x: u64 = 0;            // accept anything (no slippage check)
+    let min_x: u64 = 0; // accept anything (no slippage check)
     let min_y: u64 = 0;
 
     let mut data = Vec::with_capacity(25);
@@ -294,25 +290,19 @@ fn withdraw_returns_liquidity() {
     let ix = Instruction {
         program_id: program_id(),
         accounts: vec![
-            AccountMeta::new(user.pubkey(), true),              // 0. user
-            AccountMeta::new_readonly(mint_x, false),           // 1. mint_x
-            AccountMeta::new_readonly(mint_y, false),           // 2. mint_y
-            AccountMeta::new_readonly(config_pda, false),       // 3. config
-            AccountMeta::new(lp_mint, false),                   // 4. mint_lp (supply shrinks)
-            AccountMeta::new(vault_x, false),                   // 5. vault_x (X leaves)
-            AccountMeta::new(vault_y, false),                   // 6. vault_y (Y leaves)
-            AccountMeta::new(user_ata_x, false),                // 7. user_ata_x (X arrives)
-            AccountMeta::new(user_ata_y, false),                // 8. user_ata_y (Y arrives)
-            AccountMeta::new(user_ata_lp, false),               // 9. user_ata_lp (LP burned)
-            AccountMeta::new_readonly(
-                solana_system_interface::program::ID,
-                false,
-            ),                                                  // 10. system_program
-            AccountMeta::new_readonly(spl_token::ID, false),   // 11. token_program
-            AccountMeta::new_readonly(
-                Address::new_from_array(ATA_PROGRAM_BYTES),
-                false,
-            ),                                                  // 12. ATA program
+            AccountMeta::new(user.pubkey(), true),        // 0. user
+            AccountMeta::new_readonly(mint_x, false),     // 1. mint_x
+            AccountMeta::new_readonly(mint_y, false),     // 2. mint_y
+            AccountMeta::new_readonly(config_pda, false), // 3. config
+            AccountMeta::new(lp_mint, false),             // 4. mint_lp (supply shrinks)
+            AccountMeta::new(vault_x, false),             // 5. vault_x (X leaves)
+            AccountMeta::new(vault_y, false),             // 6. vault_y (Y leaves)
+            AccountMeta::new(user_ata_x, false),          // 7. user_ata_x (X arrives)
+            AccountMeta::new(user_ata_y, false),          // 8. user_ata_y (Y arrives)
+            AccountMeta::new(user_ata_lp, false),         // 9. user_ata_lp (LP burned)
+            AccountMeta::new_readonly(solana_system_interface::program::ID, false), // 10. system_program
+            AccountMeta::new_readonly(spl_token::ID, false), // 11. token_program
+            AccountMeta::new_readonly(Address::new_from_array(ATA_PROGRAM_BYTES), false), // 12. ATA program
         ],
         data,
     };

@@ -1,4 +1,4 @@
-use mollusk_svm::{program, Mollusk};
+use mollusk_svm::{Mollusk, program};
 use mollusk_svm_bencher::MolluskComputeUnitBencher;
 use solana_sdk::{
     account::{Account, WritableAccount},
@@ -80,19 +80,11 @@ fn main() {
         Pubkey::find_program_address(&[b"lp", config_pda.as_ref()], &program_id);
 
     let (vault_x, _) = Pubkey::find_program_address(
-        &[
-            config_pda.as_ref(),
-            spl_token::ID.as_ref(),
-            mint_x.as_ref(),
-        ],
+        &[config_pda.as_ref(), spl_token::ID.as_ref(), mint_x.as_ref()],
         &ata_program_id,
     );
     let (vault_y, _) = Pubkey::find_program_address(
-        &[
-            config_pda.as_ref(),
-            spl_token::ID.as_ref(),
-            mint_y.as_ref(),
-        ],
+        &[config_pda.as_ref(), spl_token::ID.as_ref(), mint_y.as_ref()],
         &ata_program_id,
     );
 

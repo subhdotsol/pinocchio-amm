@@ -1,15 +1,19 @@
 use core::mem::size_of;
 
-use pinocchio::{AccountView, Address, ProgramResult, cpi::{Seed, Signer}, error::ProgramError};
+use pinocchio::{
+    AccountView, Address, ProgramResult,
+    cpi::{Seed, Signer},
+    error::ProgramError,
+};
 
+use constant_product_curve::ConstantProduct;
 use pinocchio_associated_token_account::instructions::CreateIdempotent;
 use pinocchio_token::instructions::{MintTo, TransferChecked};
-use constant_product_curve::ConstantProduct;
 
 use crate::{
     constants::{CONFIG_SEED, CURVE_PRECISION, LP_SEED},
     error::AmmError,
-    helper::{signer_check, AssociatedTokenAccount},
+    helper::{AssociatedTokenAccount, signer_check},
     state::Config,
 };
 
@@ -75,14 +79,39 @@ impl<'a> TryFrom<&'a mut [AccountView]> for DepositAccounts<'a> {
             }
         }
 
-        AssociatedTokenAccount::check(vault_x, config.address(), mint_x.address(), token_program.address())?;
-        AssociatedTokenAccount::check(vault_y, config.address(), mint_y.address(), token_program.address())?;
-        AssociatedTokenAccount::check(user_ata_x, user.address(), mint_x.address(), token_program.address())?;
-        AssociatedTokenAccount::check(user_ata_y, user.address(), mint_y.address(), token_program.address())?;
+        AssociatedTokenAccount::check(
+            vault_x,
+            config.address(),
+            mint_x.address(),
+            token_program.address(),
+        )?;
+        AssociatedTokenAccount::check(
+            vault_y,
+            config.address(),
+            mint_y.address(),
+            token_program.address(),
+        )?;
+        AssociatedTokenAccount::check(
+            user_ata_x,
+            user.address(),
+            mint_x.address(),
+            token_program.address(),
+        )?;
+        AssociatedTokenAccount::check(
+            user_ata_y,
+            user.address(),
+            mint_y.address(),
+            token_program.address(),
+        )?;
 
         // user_ata_lp is `init_if_needed` — address-only check here,
         // created idempotently in run() before the mint.
-        AssociatedTokenAccount::check_address_only(user_ata_lp, user.address(), mint_lp.address(), token_program.address())?;
+        AssociatedTokenAccount::check_address_only(
+            user_ata_lp,
+            user.address(),
+            mint_lp.address(),
+            token_program.address(),
+        )?;
 
         Ok(Self {
             user,
@@ -122,7 +151,11 @@ impl<'a> TryFrom<&'a [u8]> for DepositInstructionData {
             return Err(AmmError::InvalidAmount.into());
         }
 
-        Ok(Self { amount, max_x, max_y })
+        Ok(Self {
+            amount,
+            max_x,
+            max_y,
+        })
     }
 }
 

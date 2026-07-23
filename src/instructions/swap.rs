@@ -214,9 +214,8 @@ impl<'a> Swap<'a> {
         let lp_supply =
             pinocchio_token::state::Mint::from_account_view(self.accounts.mint_lp)?.supply();
 
-        let mut curve =
-            ConstantProduct::init(vault_x_amount, vault_y_amount, lp_supply, fee, None)
-                .map_err(AmmError::from)?;
+        let mut curve = ConstantProduct::init(vault_x_amount, vault_y_amount, lp_supply, fee, None)
+            .map_err(AmmError::from)?;
 
         let pair = if self.data.is_x {
             LiquidityPair::X

@@ -1,10 +1,7 @@
 use pinocchio::{AccountView, Address, ProgramResult, error::ProgramError};
 
 use crate::instructions::{
-    deposit::Deposit,
-    initialize::Initialize,
-    swap::Swap,
-    withdraw::Withdraw,
+    deposit::Deposit, initialize::Initialize, swap::Swap, withdraw::Withdraw,
 };
 
 pub fn process_instruction(

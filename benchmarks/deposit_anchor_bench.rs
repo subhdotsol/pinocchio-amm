@@ -1,4 +1,4 @@
-use mollusk_svm::{program, Mollusk};
+use mollusk_svm::{Mollusk, program};
 use mollusk_svm_bencher::MolluskComputeUnitBencher;
 use solana_sdk::{
     account::{Account, WritableAccount},
