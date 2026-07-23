@@ -23,10 +23,10 @@ CU measurements via [mollusk-svm](https://github.com/buffalojoec/mollusk). Resul
 
 | Instruction | Pinocchio (CU) | Anchor (CU) | Savings |
 |-------------|---------------:|------------:|--------:|
-| initialize  |          35341 |       61782 |   42.8% |
-| deposit     |          13895 |       34441 |   59.7% |
-| swap        |          19263 |       27891 |   30.9% |
-| withdraw    |          14328 |       35375 |   59.5% |
+| initialize  |           5,722 |      61,782 |   90.7% |
+| deposit     |           7,982 |      34,441 |   76.8% |
+| swap        |           4,950 |      27,891 |   82.3% |
+| withdraw    |           8,404 |      35,375 |   76.2% |
 
 ## Project Layout
 
