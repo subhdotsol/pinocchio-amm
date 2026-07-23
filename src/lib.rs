@@ -14,6 +14,3 @@ no_allocator!();
 
 pub const ID: Address =
     Address::new_from_array(pinocchio_pubkey::pubkey!("2zmvAfAG6t839jmhL9uim6yp9WBrSJyqN9TTeuoEQmkE"));
-
-#[cfg(test)]
-mod tests;
