@@ -10,6 +10,7 @@ pub mod instructions;
 pub mod state;
 
 program_entrypoint!(entrypoint::process_instruction);
+#[allow(unexpected_cfgs)]
 no_allocator!();
 
 pub const ID: Address = Address::new_from_array(pinocchio_pubkey::pubkey!(

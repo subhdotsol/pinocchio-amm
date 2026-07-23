@@ -22,7 +22,7 @@ impl Config {
     pub const LEN: usize = size_of::<Self>();
 
     #[inline(always)]
-    pub fn load(account: &AccountView) -> Result<Ref<Self>, ProgramError> {
+    pub fn load(account: &AccountView) -> Result<Ref<'_, Self>, ProgramError> {
         if account.data_len() != Self::LEN {
             return Err(ProgramError::InvalidAccountData);
         }
@@ -35,7 +35,7 @@ impl Config {
     }
 
     #[inline(always)]
-    pub fn load_mut(account: &mut AccountView) -> Result<RefMut<Self>, ProgramError> {
+    pub fn load_mut(account: &mut AccountView) -> Result<RefMut<'_, Self>, ProgramError> {
         if account.data_len() != Self::LEN {
             return Err(ProgramError::InvalidAccountData);
         }
@@ -55,6 +55,8 @@ impl Config {
         unsafe { &*(bytes.as_ptr() as *const Self) }
     }
 
+    /// # Safety
+    /// Caller must ensure `bytes.len() == Config::LEN`.
     #[inline(always)]
     pub unsafe fn from_bytes_unchecked_mut(bytes: &mut [u8]) -> &mut Self {
         unsafe { &mut *(bytes.as_mut_ptr() as *mut Self) }
