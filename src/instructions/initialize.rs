@@ -6,7 +6,6 @@ use pinocchio::{
     error::ProgramError,
     sysvars::{Sysvar, rent::Rent},
 };
-use pinocchio_associated_token_account::instructions::Create as CreateAta;
 use pinocchio_system::instructions::CreateAccount;
 use pinocchio_token::instructions::InitializeMint2;
 
@@ -43,7 +42,6 @@ impl<'a> TryFrom<&'a mut [AccountView]> for InitializeAccounts<'a> {
             vault_y,
             system_program,
             token_program,
-            _associated_token_program,
             ..,
         ] = accounts
         else {
@@ -53,8 +51,8 @@ impl<'a> TryFrom<&'a mut [AccountView]> for InitializeAccounts<'a> {
         signer_check(admin)?;
         Mint::check(mint_x)?;
         Mint::check(mint_y)?;
-        system_account_check(config)?; // must not already exist
-        system_account_check(mint_lp)?; // must not already exist
+        system_account_check(config)?;
+        system_account_check(mint_lp)?;
 
         Ok(Self {
             admin,
@@ -155,7 +153,38 @@ impl<'a> Initialize<'a> {
             return Err(ProgramError::InvalidSeeds);
         }
 
-        //  create the config account
+        // Validate vault_x: must be a pre-existing token account for mint_x owned by config PDA.
+        // Vaults are created by the client before calling initialize.
+        {
+            let vault_x = pinocchio_token::state::Account::from_account_view(self.accounts.vault_x)
+                .map_err(|_| ProgramError::InvalidAccountData)?;
+            if vault_x.mint() != self.accounts.mint_x.address() {
+                return Err(ProgramError::InvalidAccountData);
+            }
+            if vault_x.owner() != &config_pda {
+                return Err(ProgramError::InvalidAccountOwner);
+            }
+            if vault_x.amount() != 0 {
+                return Err(ProgramError::InvalidAccountData);
+            }
+        }
+
+        {
+            let vault_y = pinocchio_token::state::Account::from_account_view(self.accounts.vault_y)
+                .map_err(|_| ProgramError::InvalidAccountData)?;
+            if vault_y.mint() != self.accounts.mint_y.address() {
+                return Err(ProgramError::InvalidAccountData);
+            }
+            if vault_y.owner() != &config_pda {
+                return Err(ProgramError::InvalidAccountOwner);
+            }
+            if vault_y.amount() != 0 {
+                return Err(ProgramError::InvalidAccountData);
+            }
+        }
+
+        let rent = Rent::get()?;
+
         let config_bump_seed = [config_bump];
         let config_seeds = [
             Seed::from(CONFIG_SEED),
@@ -167,13 +196,12 @@ impl<'a> Initialize<'a> {
         CreateAccount {
             from: self.accounts.admin,
             to: self.accounts.config,
-            lamports: Rent::get()?.try_minimum_balance(Config::LEN)?,
+            lamports: rent.try_minimum_balance(Config::LEN)?,
             space: Config::LEN as u64,
             owner: &crate::ID,
         }
         .invoke_signed(&config_signer)?;
 
-        // create + initialize the LP mint
         let lp_bump_seed = [lp_bump];
         let lp_seeds = [
             Seed::from(LP_SEED),
@@ -185,7 +213,7 @@ impl<'a> Initialize<'a> {
         CreateAccount {
             from: self.accounts.admin,
             to: self.accounts.mint_lp,
-            lamports: Rent::get()?.try_minimum_balance(pinocchio_token::state::Mint::LEN)?,
+            lamports: rent.try_minimum_balance(pinocchio_token::state::Mint::LEN)?,
             space: pinocchio_token::state::Mint::LEN as u64,
             owner: &pinocchio_token::ID,
         }
@@ -199,28 +227,6 @@ impl<'a> Initialize<'a> {
         }
         .invoke()?;
 
-        // create the two pool vault ATAs, owned by the config PDA
-        CreateAta {
-            funding_account: self.accounts.admin,
-            account: self.accounts.vault_x,
-            wallet: self.accounts.config,
-            mint: self.accounts.mint_x,
-            system_program: self.accounts.system_program,
-            token_program: self.accounts.token_program,
-        }
-        .invoke()?;
-
-        CreateAta {
-            funding_account: self.accounts.admin,
-            account: self.accounts.vault_y,
-            wallet: self.accounts.config,
-            mint: self.accounts.mint_y,
-            system_program: self.accounts.system_program,
-            token_program: self.accounts.token_program,
-        }
-        .invoke()?;
-
-        // write pool state
         let mut config_data = Config::load_mut(self.accounts.config)?;
         config_data.set_inner(
             self.data.seed,

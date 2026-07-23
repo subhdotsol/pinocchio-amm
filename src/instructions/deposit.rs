@@ -7,8 +7,7 @@ use pinocchio::{
 };
 
 use constant_product_curve::ConstantProduct;
-use pinocchio_associated_token_account::instructions::CreateIdempotent;
-use pinocchio_token::instructions::{MintTo, TransferChecked};
+use pinocchio_token::instructions::{MintTo, Transfer};
 
 use crate::{
     constants::{CONFIG_SEED, CURVE_PRECISION, LP_SEED},
@@ -21,14 +20,13 @@ pub struct DepositAccounts<'a> {
     pub user: &'a AccountView,
     pub mint_x: &'a AccountView,
     pub mint_y: &'a AccountView,
-    pub config: &'a AccountView,
+    pub config: &'a mut AccountView,
     pub mint_lp: &'a AccountView,
     pub vault_x: &'a AccountView,
     pub vault_y: &'a AccountView,
     pub user_ata_x: &'a AccountView,
     pub user_ata_y: &'a AccountView,
     pub user_ata_lp: &'a AccountView,
-    pub system_program: &'a AccountView,
     pub token_program: &'a AccountView,
 }
 
@@ -47,7 +45,6 @@ impl<'a> TryFrom<&'a mut [AccountView]> for DepositAccounts<'a> {
             user_ata_x,
             user_ata_y,
             user_ata_lp,
-            system_program,
             token_program,
             ..,
         ] = accounts
@@ -103,10 +100,7 @@ impl<'a> TryFrom<&'a mut [AccountView]> for DepositAccounts<'a> {
             mint_y.address(),
             token_program.address(),
         )?;
-
-        // user_ata_lp is `init_if_needed` — address-only check here,
-        // created idempotently in run() before the mint.
-        AssociatedTokenAccount::check_address_only(
+        AssociatedTokenAccount::check(
             user_ata_lp,
             user.address(),
             mint_lp.address(),
@@ -124,7 +118,6 @@ impl<'a> TryFrom<&'a mut [AccountView]> for DepositAccounts<'a> {
             user_ata_x,
             user_ata_y,
             user_ata_lp,
-            system_program,
             token_program,
         })
     }
@@ -188,27 +181,29 @@ impl<'a> Deposit<'a> {
     }
 
     fn run(&mut self) -> ProgramResult {
-        let (seed, config_bump) = {
+        // Phase 1: read everything from config in a single borrow.
+        let (seed, config_bump, reserve_x, reserve_y) = {
             let config_data = Config::load(self.accounts.config)?;
             if config_data.locked() {
                 return Err(AmmError::PoolLocked.into());
             }
-            (config_data.seed(), config_data.config_bump())
+            (
+                config_data.seed(),
+                config_data.config_bump(),
+                config_data.reserve_x(),
+                config_data.reserve_y(),
+            )
         };
 
-        let vault_x_amount =
-            pinocchio_token::state::Account::from_account_view(self.accounts.vault_x)?.amount();
-        let vault_y_amount =
-            pinocchio_token::state::Account::from_account_view(self.accounts.vault_y)?.amount();
         let lp_supply =
             pinocchio_token::state::Mint::from_account_view(self.accounts.mint_lp)?.supply();
 
-        let (x, y) = if lp_supply == 0 && vault_x_amount == 0 && vault_y_amount == 0 {
+        let (x, y) = if lp_supply == 0 && reserve_x == 0 && reserve_y == 0 {
             (self.data.max_x, self.data.max_y)
         } else {
             let amounts = ConstantProduct::xy_deposit_amounts_from_l(
-                vault_x_amount,
-                vault_y_amount,
+                reserve_x,
+                reserve_y,
                 lp_supply,
                 self.data.amount,
                 CURVE_PRECISION as u32,
@@ -217,47 +212,28 @@ impl<'a> Deposit<'a> {
             (amounts.x, amounts.y)
         };
 
-        let no_signers: &[&AccountView] = &[];
-
         if x > self.data.max_x || y > self.data.max_y {
             return Err(AmmError::SlippageExceeded.into());
         }
 
-        let mint_x_decimals =
-            pinocchio_token::state::Mint::from_account_view(self.accounts.mint_x)?.decimals();
-        let mint_y_decimals =
-            pinocchio_token::state::Mint::from_account_view(self.accounts.mint_y)?.decimals();
+        // Phase 2: CPIs — all config borrows must be released before this.
+        let no_signers: &[&AccountView] = &[];
 
-        TransferChecked {
+        Transfer {
             from: self.accounts.user_ata_x,
-            mint: self.accounts.mint_x,
             to: self.accounts.vault_x,
             authority: self.accounts.user,
             multisig_signers: no_signers,
             amount: x,
-            decimals: mint_x_decimals,
         }
         .invoke()?;
 
-        TransferChecked {
+        Transfer {
             from: self.accounts.user_ata_y,
-            mint: self.accounts.mint_y,
             to: self.accounts.vault_y,
             authority: self.accounts.user,
             multisig_signers: no_signers,
             amount: y,
-            decimals: mint_y_decimals,
-        }
-        .invoke()?;
-
-        // Create the user's LP ATA if it doesn't exist yet (idempotent).
-        CreateIdempotent {
-            funding_account: self.accounts.user,
-            account: self.accounts.user_ata_lp,
-            wallet: self.accounts.user,
-            mint: self.accounts.mint_lp,
-            system_program: self.accounts.system_program,
-            token_program: self.accounts.token_program,
         }
         .invoke()?;
 
@@ -270,6 +246,7 @@ impl<'a> Deposit<'a> {
         ];
         let signer = [Signer::from(&seeds)];
 
+        let no_signers: &[&AccountView] = &[];
         MintTo {
             mint: self.accounts.mint_lp,
             account: self.accounts.user_ata_lp,
@@ -277,6 +254,21 @@ impl<'a> Deposit<'a> {
             multisig_signers: no_signers,
             amount: self.data.amount,
         }
-        .invoke_signed(&signer)
+        .invoke_signed(&signer)?;
+
+        // Phase 3: update cached reserves.
+        let mut config_data = Config::load_mut(self.accounts.config)?;
+        config_data.set_reserve_x(
+            reserve_x
+                .checked_add(x)
+                .ok_or(ProgramError::ArithmeticOverflow)?,
+        );
+        config_data.set_reserve_y(
+            reserve_y
+                .checked_add(y)
+                .ok_or(ProgramError::ArithmeticOverflow)?,
+        );
+
+        Ok(())
     }
 }

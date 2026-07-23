@@ -10,7 +10,7 @@ use solana_sdk::{
 };
 use spl_token::state::Mint;
 
-const CONFIG_LEN: usize = 109;
+const CONFIG_LEN: usize = 125;
 
 fn make_token_account(
     mollusk: &Mollusk,
@@ -68,13 +68,13 @@ fn main() {
     );
     mollusk.add_program(&ata_program_id, "tests/elfs/spl_associated_token_account");
 
-    let (system_program, system_program_account) = program::keyed_account_for_system_program();
     let token_program = spl_token::ID;
     let token_program_account = program::create_program_account_loader_v3(&token_program);
-    let ata_program_account = program::create_program_account_loader_v3(&ata_program_id);
 
     let seed: u64 = 12345;
     let fee: u16 = 30;
+    let reserve_x: u64 = 100_000;
+    let reserve_y: u64 = 100_000;
 
     let mint_x = Pubkey::new_from_array([0x03; 32]);
     let mut mint_x_account = Account::new(
@@ -124,7 +124,8 @@ fn main() {
     let (lp_pda, lp_bump) =
         Pubkey::find_program_address(&[LP_SEED, config_pda.as_ref()], &program_id);
 
-    // Build config account data
+    // Config state: seed(8) | authority(32) | mint_x(32) | mint_y(32) | fee(2) | locked(1) |
+    //               config_bump(1) | lp_bump(1) | reserve_x(8) | reserve_y(8) = 125 bytes
     let mut config_data = vec![0u8; CONFIG_LEN];
     config_data[0..8].copy_from_slice(&seed.to_le_bytes());
     config_data[40..72].copy_from_slice(&mint_x.to_bytes());
@@ -132,6 +133,8 @@ fn main() {
     config_data[104..106].copy_from_slice(&fee.to_le_bytes());
     config_data[107] = config_bump;
     config_data[108] = lp_bump;
+    config_data[109..117].copy_from_slice(&reserve_x.to_le_bytes());
+    config_data[117..125].copy_from_slice(&reserve_y.to_le_bytes());
 
     let mut config_account = Account::new(
         mollusk.sysvars.rent.minimum_balance(CONFIG_LEN),
@@ -142,51 +145,28 @@ fn main() {
         .data_as_mut_slice()
         .copy_from_slice(&config_data);
 
-    // LP mint: supply = 100_000 (pool has existing liquidity)
-    let mut lp_mint_account = Account::new(
-        mollusk
-            .sysvars
-            .rent
-            .minimum_balance(spl_token::state::Mint::LEN),
-        spl_token::state::Mint::LEN,
-        &token_program,
-    );
-    Pack::pack(
-        Mint {
-            mint_authority: COption::Some(config_pda),
-            supply: 100_000,
-            decimals: 6,
-            is_initialized: true,
-            freeze_authority: COption::None,
-        },
-        lp_mint_account.data_as_mut_slice(),
-    )
-    .unwrap();
-
-    // Vaults with existing liquidity
     let vault_x = ata(config_pda, token_program, mint_x, ata_program_id);
     let vault_y = ata(config_pda, token_program, mint_y, ata_program_id);
-    let vault_x_account = make_token_account(&mollusk, mint_x, config_pda, 100_000, token_program);
-    let vault_y_account = make_token_account(&mollusk, mint_y, config_pda, 100_000, token_program);
+    let vault_x_account = make_token_account(&mollusk, mint_x, config_pda, reserve_x, token_program);
+    let vault_y_account = make_token_account(&mollusk, mint_y, config_pda, reserve_y, token_program);
 
     let user = Pubkey::new_unique();
     let user_ata_x = ata(user, token_program, mint_x, ata_program_id);
     let user_ata_y = ata(user, token_program, mint_y, ata_program_id);
 
-    let user_account = Account::new(10_000_000_000, 0, &system_program);
-    // Swapping X → Y: user needs X tokens as input
     let user_ata_x_account = make_token_account(&mollusk, mint_x, user, 100_000, token_program);
     let user_ata_y_account = make_token_account(&mollusk, mint_y, user, 0, token_program);
 
-    // Instruction data: [discriminator(1), is_x(1), amount_in(8), min_amount_out(8)]
-    let is_x: u8 = 1; // swapping X for Y
+    let is_x: u8 = 1;
     let amount_in: u64 = 10_000;
-    let min_amount_out: u64 = 1; // conservative minimum
+    let min_amount_out: u64 = 1;
     let mut data = vec![2u8]; // discriminator = 2 for Swap
     data.push(is_x);
     data.extend_from_slice(&amount_in.to_le_bytes());
     data.extend_from_slice(&min_amount_out.to_le_bytes());
 
+    // Swap accounts: user, mint_x, mint_y, config, vault_x, vault_y,
+    //                user_ata_x, user_ata_y, token_program
     let instruction = Instruction {
         program_id,
         accounts: vec![
@@ -194,32 +174,30 @@ fn main() {
             AccountMeta::new_readonly(mint_x, false),
             AccountMeta::new_readonly(mint_y, false),
             AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(lp_pda, false),
             AccountMeta::new(vault_x, false),
             AccountMeta::new(vault_y, false),
             AccountMeta::new(user_ata_x, false),
             AccountMeta::new(user_ata_y, false),
-            AccountMeta::new_readonly(system_program, false),
             AccountMeta::new_readonly(token_program, false),
-            AccountMeta::new_readonly(ata_program_id, false),
         ],
         data,
     };
 
     let accounts = vec![
-        (user, user_account),
+        (user, Account::new(10_000_000_000, 0, &Pubkey::default())),
         (mint_x, mint_x_account),
         (mint_y, mint_y_account),
         (config_pda, config_account),
-        (lp_pda, lp_mint_account),
         (vault_x, vault_x_account),
         (vault_y, vault_y_account),
         (user_ata_x, user_ata_x_account),
         (user_ata_y, user_ata_y_account),
-        (system_program, system_program_account),
         (token_program, token_program_account),
-        (ata_program_id, ata_program_account),
     ];
+
+    // Unused but needed for lp_pda PDA derivation not to warn
+    let _ = lp_pda;
+    let _ = lp_bump;
 
     MolluskComputeUnitBencher::new(mollusk)
         .bench(("swap", &instruction, &accounts))

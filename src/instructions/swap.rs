@@ -6,12 +6,10 @@ use pinocchio::{
     error::ProgramError,
 };
 
-use constant_product_curve::{ConstantProduct, LiquidityPair};
-use pinocchio_associated_token_account::instructions::CreateIdempotent;
-use pinocchio_token::instructions::TransferChecked;
+use pinocchio_token::instructions::Transfer;
 
 use crate::{
-    constants::{CONFIG_SEED, LP_SEED},
+    constants::CONFIG_SEED,
     error::AmmError,
     helper::{AssociatedTokenAccount, signer_check},
     state::Config,
@@ -21,13 +19,11 @@ pub struct SwapAccounts<'a> {
     pub user: &'a AccountView,
     pub mint_x: &'a AccountView,
     pub mint_y: &'a AccountView,
-    pub config: &'a AccountView,
-    pub mint_lp: &'a AccountView,
+    pub config: &'a mut AccountView,
     pub vault_x: &'a AccountView,
     pub vault_y: &'a AccountView,
     pub user_ata_x: &'a AccountView,
     pub user_ata_y: &'a AccountView,
-    pub system_program: &'a AccountView,
     pub token_program: &'a AccountView,
 }
 
@@ -40,12 +36,10 @@ impl<'a> TryFrom<&'a mut [AccountView]> for SwapAccounts<'a> {
             mint_x,
             mint_y,
             config,
-            mint_lp,
             vault_x,
             vault_y,
             user_ata_x,
             user_ata_y,
-            system_program,
             token_program,
             ..,
         ] = accounts
@@ -61,12 +55,6 @@ impl<'a> TryFrom<&'a mut [AccountView]> for SwapAccounts<'a> {
             {
                 return Err(ProgramError::InvalidAccountData);
             }
-            let (expected_lp, _) =
-                Address::derive_program_address(&[LP_SEED, config.address().as_ref()], &crate::ID)
-                    .ok_or(ProgramError::InvalidSeeds)?;
-            if mint_lp.address() != &expected_lp {
-                return Err(ProgramError::InvalidSeeds);
-            }
         }
 
         AssociatedTokenAccount::check(
@@ -81,15 +69,13 @@ impl<'a> TryFrom<&'a mut [AccountView]> for SwapAccounts<'a> {
             mint_y.address(),
             token_program.address(),
         )?;
-        // Both user ATAs are `init_if_needed` — address-only check here,
-        // created idempotently in run() before the swap.
-        AssociatedTokenAccount::check_address_only(
+        AssociatedTokenAccount::check(
             user_ata_x,
             user.address(),
             mint_x.address(),
             token_program.address(),
         )?;
-        AssociatedTokenAccount::check_address_only(
+        AssociatedTokenAccount::check(
             user_ata_y,
             user.address(),
             mint_y.address(),
@@ -101,12 +87,10 @@ impl<'a> TryFrom<&'a mut [AccountView]> for SwapAccounts<'a> {
             mint_x,
             mint_y,
             config,
-            mint_lp,
             vault_x,
             vault_y,
             user_ata_x,
             user_ata_y,
-            system_program,
             token_program,
         })
     }
@@ -175,113 +159,58 @@ impl<'a> Swap<'a> {
     }
 
     fn run(&mut self) -> ProgramResult {
-        let (fee, seed, config_bump) = {
+        // Phase 1: read config in a single borrow.
+        let (fee, reserve_x, reserve_y, seed, config_bump) = {
             let config_data = Config::load(self.accounts.config)?;
             if config_data.locked() {
                 return Err(AmmError::PoolLocked.into());
             }
             (
                 config_data.fee(),
+                config_data.reserve_x(),
+                config_data.reserve_y(),
                 config_data.seed(),
                 config_data.config_bump(),
             )
         };
 
-        // Create either user ATA idempotently before we need them.
-        CreateIdempotent {
-            funding_account: self.accounts.user,
-            account: self.accounts.user_ata_x,
-            wallet: self.accounts.user,
-            mint: self.accounts.mint_x,
-            system_program: self.accounts.system_program,
-            token_program: self.accounts.token_program,
-        }
-        .invoke()?;
-        CreateIdempotent {
-            funding_account: self.accounts.user,
-            account: self.accounts.user_ata_y,
-            wallet: self.accounts.user,
-            mint: self.accounts.mint_y,
-            system_program: self.accounts.system_program,
-            token_program: self.accounts.token_program,
-        }
-        .invoke()?;
-
-        let vault_x_amount =
-            pinocchio_token::state::Account::from_account_view(self.accounts.vault_x)?.amount();
-        let vault_y_amount =
-            pinocchio_token::state::Account::from_account_view(self.accounts.vault_y)?.amount();
-        let lp_supply =
-            pinocchio_token::state::Mint::from_account_view(self.accounts.mint_lp)?.supply();
-
-        let mut curve = ConstantProduct::init(vault_x_amount, vault_y_amount, lp_supply, fee, None)
-            .map_err(AmmError::from)?;
-
-        let pair = if self.data.is_x {
-            LiquidityPair::X
+        // Phase 2: inline constant-product AMM formula (no library, no LP supply read).
+        let (reserve_in, reserve_out) = if self.data.is_x {
+            (reserve_x, reserve_y)
         } else {
-            LiquidityPair::Y
+            (reserve_y, reserve_x)
         };
-        let swap_result = curve
-            .swap(pair, self.data.amount_in, self.data.min_amount_out)
-            .map_err(AmmError::from)?;
 
-        if swap_result.deposit == 0 || swap_result.withdraw == 0 {
+        let amount_in_with_fee = self
+            .data
+            .amount_in
+            .checked_mul(
+                10_000u64
+                    .checked_sub(fee as u64)
+                    .ok_or(ProgramError::ArithmeticOverflow)?,
+            )
+            .ok_or(ProgramError::ArithmeticOverflow)?
+            .checked_div(10_000)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+
+        let amount_out = reserve_out
+            .checked_mul(amount_in_with_fee)
+            .ok_or(ProgramError::ArithmeticOverflow)?
+            .checked_div(
+                reserve_in
+                    .checked_add(amount_in_with_fee)
+                    .ok_or(ProgramError::ArithmeticOverflow)?,
+            )
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+
+        if amount_out == 0 {
             return Err(AmmError::InvalidAmount.into());
         }
-
-        let mint_x_decimals =
-            pinocchio_token::state::Mint::from_account_view(self.accounts.mint_x)?.decimals();
-        let mint_y_decimals =
-            pinocchio_token::state::Mint::from_account_view(self.accounts.mint_y)?.decimals();
-
-        let no_signers: &[&AccountView] = &[];
-
-        // deposit leg: user → vault, user signs directly
-        let (from_ata, to_vault, in_mint, in_decimals) = if self.data.is_x {
-            (
-                self.accounts.user_ata_x,
-                self.accounts.vault_x,
-                self.accounts.mint_x,
-                mint_x_decimals,
-            )
-        } else {
-            (
-                self.accounts.user_ata_y,
-                self.accounts.vault_y,
-                self.accounts.mint_y,
-                mint_y_decimals,
-            )
-        };
-
-        TransferChecked {
-            from: from_ata,
-            mint: in_mint,
-            to: to_vault,
-            authority: self.accounts.user,
-            multisig_signers: no_signers,
-            amount: swap_result.deposit,
-            decimals: in_decimals,
+        if amount_out < self.data.min_amount_out {
+            return Err(AmmError::SlippageExceeded.into());
         }
-        .invoke()?;
 
-        // withdraw leg: vault → user, config PDA signs
-        let (from_vault, to_ata, out_mint, out_decimals) = if self.data.is_x {
-            (
-                self.accounts.vault_y,
-                self.accounts.user_ata_y,
-                self.accounts.mint_y,
-                mint_y_decimals,
-            )
-        } else {
-            (
-                self.accounts.vault_x,
-                self.accounts.user_ata_x,
-                self.accounts.mint_x,
-                mint_x_decimals,
-            )
-        };
-
+        // Phase 3: CPIs — config borrows already released.
         let seed_bytes = seed.to_le_bytes();
         let bump_seed = [config_bump];
         let seeds = [
@@ -291,15 +220,68 @@ impl<'a> Swap<'a> {
         ];
         let signer = [Signer::from(&seeds)];
 
-        TransferChecked {
+        let (from_user, to_vault, from_vault, to_user) = if self.data.is_x {
+            (
+                self.accounts.user_ata_x,
+                self.accounts.vault_x,
+                self.accounts.vault_y,
+                self.accounts.user_ata_y,
+            )
+        } else {
+            (
+                self.accounts.user_ata_y,
+                self.accounts.vault_y,
+                self.accounts.vault_x,
+                self.accounts.user_ata_x,
+            )
+        };
+
+        let no_signers: &[&AccountView] = &[];
+
+        Transfer {
+            from: from_user,
+            to: to_vault,
+            authority: self.accounts.user,
+            multisig_signers: no_signers,
+            amount: self.data.amount_in,
+        }
+        .invoke()?;
+
+        Transfer {
             from: from_vault,
-            mint: out_mint,
-            to: to_ata,
+            to: to_user,
             authority: self.accounts.config,
             multisig_signers: no_signers,
-            amount: swap_result.withdraw,
-            decimals: out_decimals,
+            amount: amount_out,
         }
-        .invoke_signed(&signer)
+        .invoke_signed(&signer)?;
+
+        // Phase 4: update cached reserves.
+        let mut config_data = Config::load_mut(self.accounts.config)?;
+        if self.data.is_x {
+            config_data.set_reserve_x(
+                reserve_x
+                    .checked_add(self.data.amount_in)
+                    .ok_or(ProgramError::ArithmeticOverflow)?,
+            );
+            config_data.set_reserve_y(
+                reserve_y
+                    .checked_sub(amount_out)
+                    .ok_or(ProgramError::ArithmeticOverflow)?,
+            );
+        } else {
+            config_data.set_reserve_y(
+                reserve_y
+                    .checked_add(self.data.amount_in)
+                    .ok_or(ProgramError::ArithmeticOverflow)?,
+            );
+            config_data.set_reserve_x(
+                reserve_x
+                    .checked_sub(amount_out)
+                    .ok_or(ProgramError::ArithmeticOverflow)?,
+            );
+        }
+
+        Ok(())
     }
 }

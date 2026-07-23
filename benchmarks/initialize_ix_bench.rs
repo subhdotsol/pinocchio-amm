@@ -18,6 +18,38 @@ fn set_pinocchio_rent(mollusk: &mut Mollusk) {
     mollusk.sysvars.rent.exemption_threshold = 1.0;
 }
 
+fn make_token_account(
+    mollusk: &Mollusk,
+    mint: Pubkey,
+    owner: Pubkey,
+    amount: u64,
+    token_program: Pubkey,
+) -> Account {
+    let mut account = Account::new(
+        mollusk
+            .sysvars
+            .rent
+            .minimum_balance(spl_token::state::Account::LEN),
+        spl_token::state::Account::LEN,
+        &token_program,
+    );
+    Pack::pack(
+        spl_token::state::Account {
+            mint,
+            owner,
+            amount,
+            delegate: COption::None,
+            state: spl_token::state::AccountState::Initialized,
+            is_native: COption::None,
+            delegated_amount: 0,
+            close_authority: COption::None,
+        },
+        account.data_as_mut_slice(),
+    )
+    .unwrap();
+    account
+}
+
 fn main() {
     let program_id: Pubkey = "2zmvAfAG6t839jmhL9uim6yp9WBrSJyqN9TTeuoEQmkE"
         .parse()
@@ -38,7 +70,6 @@ fn main() {
     let (system_program, system_program_account) = program::keyed_account_for_system_program();
     let token_program = spl_token::ID;
     let token_program_account = program::create_program_account_loader_v3(&token_program);
-    let ata_program_account = program::create_program_account_loader_v3(&ata_program_id);
 
     let seed: u64 = 12345;
     let fee: u16 = 30;
@@ -91,7 +122,6 @@ fn main() {
     let (lp_pda, _lp_bump) =
         Pubkey::find_program_address(&[LP_SEED, config_pda.as_ref()], &program_id);
 
-    // ATA seeds: [owner, token_program, mint]
     let (vault_x, _) = Pubkey::find_program_address(
         &[config_pda.as_ref(), spl_token::ID.as_ref(), mint_x.as_ref()],
         &ata_program_id,
@@ -101,17 +131,17 @@ fn main() {
         &ata_program_id,
     );
 
-    // Admin with plenty of SOL to fund account creations
     let admin = Pubkey::new_unique();
     let admin_account = Account::new(100_000_000_000, 0, &system_program);
 
-    // All remaining accounts start empty (system-owned) — created by the instruction
+    // config and lp_mint start empty — created by the instruction.
     let config_account = Account::new(0, 0, &system_program);
     let lp_mint_account = Account::new(0, 0, &system_program);
-    let vault_x_account = Account::new(0, 0, &system_program);
-    let vault_y_account = Account::new(0, 0, &system_program);
 
-    // Instruction data: [discriminator(1), seed(8), fee(2), authority(32)]
+    // Vaults are pre-created by the client before calling initialize.
+    let vault_x_account = make_token_account(&mollusk, mint_x, config_pda, 0, token_program);
+    let vault_y_account = make_token_account(&mollusk, mint_y, config_pda, 0, token_program);
+
     let mut data = vec![0u8]; // discriminator = 0 for Initialize
     data.extend_from_slice(&seed.to_le_bytes());
     data.extend_from_slice(&fee.to_le_bytes());
@@ -121,15 +151,14 @@ fn main() {
         program_id,
         accounts: vec![
             AccountMeta::new(admin, true),
-            AccountMeta::new(mint_x, false),
-            AccountMeta::new(mint_y, false),
+            AccountMeta::new_readonly(mint_x, false),
+            AccountMeta::new_readonly(mint_y, false),
             AccountMeta::new(config_pda, false),
             AccountMeta::new(lp_pda, false),
-            AccountMeta::new(vault_x, false),
-            AccountMeta::new(vault_y, false),
+            AccountMeta::new_readonly(vault_x, false),
+            AccountMeta::new_readonly(vault_y, false),
             AccountMeta::new_readonly(system_program, false),
             AccountMeta::new_readonly(token_program, false),
-            AccountMeta::new_readonly(ata_program_id, false),
         ],
         data,
     };
@@ -144,7 +173,6 @@ fn main() {
         (vault_y, vault_y_account),
         (system_program, system_program_account),
         (token_program, token_program_account),
-        (ata_program_id, ata_program_account),
     ];
 
     MolluskComputeUnitBencher::new(mollusk)

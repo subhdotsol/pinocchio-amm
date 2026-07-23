@@ -16,6 +16,8 @@ pub struct Config {
     locked: u8, // 0 = false, 1 = true
     config_bump: u8,
     lp_bump: u8,
+    reserve_x: [u8; 8],
+    reserve_y: [u8; 8],
 }
 
 impl Config {
@@ -100,6 +102,16 @@ impl Config {
     }
 
     #[inline(always)]
+    pub fn reserve_x(&self) -> u64 {
+        u64::from_le_bytes(self.reserve_x)
+    }
+
+    #[inline(always)]
+    pub fn reserve_y(&self) -> u64 {
+        u64::from_le_bytes(self.reserve_y)
+    }
+
+    #[inline(always)]
     pub fn authority(&self) -> Option<Address> {
         if self.authority == Address::new_from_array([0u8; 32]) {
             None
@@ -154,6 +166,16 @@ impl Config {
         self.lp_bump = bump;
     }
 
+    #[inline(always)]
+    pub fn set_reserve_x(&mut self, reserve: u64) {
+        self.reserve_x = reserve.to_le_bytes();
+    }
+
+    #[inline(always)]
+    pub fn set_reserve_y(&mut self, reserve: u64) {
+        self.reserve_y = reserve.to_le_bytes();
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn set_inner(
         &mut self,
@@ -173,6 +195,8 @@ impl Config {
         self.set_locked(false);
         self.set_config_bump(config_bump);
         self.set_lp_bump(lp_bump);
+        self.set_reserve_x(0);
+        self.set_reserve_y(0);
         Ok(())
     }
 }

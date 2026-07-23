@@ -1,13 +1,13 @@
 use core::mem::size_of;
 
-use constant_product_curve::ConstantProduct;
 use pinocchio::{
     AccountView, Address, ProgramResult,
     cpi::{Seed, Signer},
     error::ProgramError,
 };
-use pinocchio_associated_token_account::instructions::CreateIdempotent;
-use pinocchio_token::instructions::{Burn, TransferChecked};
+
+use constant_product_curve::ConstantProduct;
+use pinocchio_token::instructions::{Burn, Transfer};
 
 use crate::{
     constants::{CONFIG_SEED, CURVE_PRECISION, LP_SEED},
@@ -20,14 +20,13 @@ pub struct WithdrawAccounts<'a> {
     pub user: &'a AccountView,
     pub mint_x: &'a AccountView,
     pub mint_y: &'a AccountView,
-    pub config: &'a AccountView,
+    pub config: &'a mut AccountView,
     pub mint_lp: &'a AccountView,
     pub vault_x: &'a AccountView,
     pub vault_y: &'a AccountView,
     pub user_ata_x: &'a AccountView,
     pub user_ata_y: &'a AccountView,
     pub user_ata_lp: &'a AccountView,
-    pub system_program: &'a AccountView,
     pub token_program: &'a AccountView,
 }
 
@@ -46,7 +45,6 @@ impl<'a> TryFrom<&'a mut [AccountView]> for WithdrawAccounts<'a> {
             user_ata_x,
             user_ata_y,
             user_ata_lp,
-            system_program,
             token_program,
             ..,
         ] = accounts
@@ -94,7 +92,7 @@ impl<'a> TryFrom<&'a mut [AccountView]> for WithdrawAccounts<'a> {
             mint_y.address(),
             token_program.address(),
         )?;
-        AssociatedTokenAccount::check_address_only(
+        AssociatedTokenAccount::check(
             user_ata_lp,
             user.address(),
             mint_lp.address(),
@@ -112,7 +110,6 @@ impl<'a> TryFrom<&'a mut [AccountView]> for WithdrawAccounts<'a> {
             user_ata_x,
             user_ata_y,
             user_ata_lp,
-            system_program,
             token_program,
         })
     }
@@ -176,27 +173,29 @@ impl<'a> Withdraw<'a> {
     }
 
     fn run(&mut self) -> ProgramResult {
-        let (seed, config_bump) = {
+        // Phase 1: read everything from config in a single borrow.
+        let (seed, config_bump, reserve_x, reserve_y) = {
             let config_data = Config::load(self.accounts.config)?;
             if config_data.locked() {
                 return Err(AmmError::PoolLocked.into());
             }
-            (config_data.seed(), config_data.config_bump())
+            (
+                config_data.seed(),
+                config_data.config_bump(),
+                config_data.reserve_x(),
+                config_data.reserve_y(),
+            )
         };
 
-        let vault_x_amount =
-            pinocchio_token::state::Account::from_account_view(self.accounts.vault_x)?.amount();
-        let vault_y_amount =
-            pinocchio_token::state::Account::from_account_view(self.accounts.vault_y)?.amount();
         let lp_supply =
             pinocchio_token::state::Mint::from_account_view(self.accounts.mint_lp)?.supply();
 
-        let (x, y) = if lp_supply == 0 && vault_x_amount == 0 && vault_y_amount == 0 {
+        let (x, y) = if lp_supply == 0 && reserve_x == 0 && reserve_y == 0 {
             (self.data.min_x, self.data.min_y)
         } else {
             let amounts = ConstantProduct::xy_withdraw_amounts_from_l(
-                vault_x_amount,
-                vault_y_amount,
+                reserve_x,
+                reserve_y,
                 lp_supply,
                 self.data.amount,
                 CURVE_PRECISION as u32,
@@ -209,19 +208,9 @@ impl<'a> Withdraw<'a> {
             return Err(AmmError::SlippageExceeded.into());
         }
 
+        // Phase 2: CPIs — all config borrows must be released before this.
         let no_signers: &[&AccountView] = &[];
 
-        CreateIdempotent {
-            funding_account: self.accounts.user,
-            account: self.accounts.user_ata_lp,
-            wallet: self.accounts.user,
-            mint: self.accounts.mint_lp,
-            system_program: self.accounts.system_program,
-            token_program: self.accounts.token_program,
-        }
-        .invoke()?;
-
-        // Burn is authorized by the user directly — they own the LP tokens.
         Burn {
             mint: self.accounts.mint_lp,
             account: self.accounts.user_ata_lp,
@@ -230,11 +219,6 @@ impl<'a> Withdraw<'a> {
             amount: self.data.amount,
         }
         .invoke()?;
-
-        let mint_x_decimals =
-            pinocchio_token::state::Mint::from_account_view(self.accounts.mint_x)?.decimals();
-        let mint_y_decimals =
-            pinocchio_token::state::Mint::from_account_view(self.accounts.mint_y)?.decimals();
 
         let seed_bytes = seed.to_le_bytes();
         let bump_seed = [config_bump];
@@ -245,26 +229,37 @@ impl<'a> Withdraw<'a> {
         ];
         let signer = [Signer::from(&seeds)];
 
-        TransferChecked {
+        Transfer {
             from: self.accounts.vault_x,
-            mint: self.accounts.mint_x,
             to: self.accounts.user_ata_x,
             authority: self.accounts.config,
             multisig_signers: no_signers,
             amount: x,
-            decimals: mint_x_decimals,
         }
         .invoke_signed(&signer)?;
 
-        TransferChecked {
+        Transfer {
             from: self.accounts.vault_y,
-            mint: self.accounts.mint_y,
             to: self.accounts.user_ata_y,
             authority: self.accounts.config,
             multisig_signers: no_signers,
             amount: y,
-            decimals: mint_y_decimals,
         }
-        .invoke_signed(&signer)
+        .invoke_signed(&signer)?;
+
+        // Phase 3: update cached reserves.
+        let mut config_data = Config::load_mut(self.accounts.config)?;
+        config_data.set_reserve_x(
+            reserve_x
+                .checked_sub(x)
+                .ok_or(ProgramError::ArithmeticOverflow)?,
+        );
+        config_data.set_reserve_y(
+            reserve_y
+                .checked_sub(y)
+                .ok_or(ProgramError::ArithmeticOverflow)?,
+        );
+
+        Ok(())
     }
 }

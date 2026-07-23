@@ -28,8 +28,8 @@ const PINOCCHIO_AMM_ID: &str = "2zmvAfAG6t839jmhL9uim6yp9WBrSJyqN9TTeuoEQmkE";
 const ANCHOR_AMM_ID: &str = "9a95ZYK3AT5HcivR5X59niNgqdYP9oE5XqomA2kNHWRV";
 const ATA_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 
-// Pinocchio Config: 109 bytes, no discriminator
-const P_CONFIG_LEN: usize = 109;
+// Pinocchio Config: 125 bytes, no discriminator (includes reserve_x/reserve_y)
+const P_CONFIG_LEN: usize = 125;
 // Anchor Config: 8 disc + 110 InitSpace = 118 bytes
 const A_CONFIG_LEN: usize = 118;
 
@@ -160,15 +160,14 @@ fn main() {
         program_id: p_program_id,
         accounts: vec![
             AccountMeta::new(p_admin, true),
-            AccountMeta::new(mint_x, false),
-            AccountMeta::new(mint_y, false),
+            AccountMeta::new_readonly(mint_x, false),
+            AccountMeta::new_readonly(mint_y, false),
             AccountMeta::new(p_config_pda, false),
             AccountMeta::new(p_lp_pda, false),
-            AccountMeta::new(p_vault_x, false),
-            AccountMeta::new(p_vault_y, false),
+            AccountMeta::new_readonly(p_vault_x, false),
+            AccountMeta::new_readonly(p_vault_y, false),
             AccountMeta::new_readonly(system_program, false),
             AccountMeta::new_readonly(token_program, false),
-            AccountMeta::new_readonly(ata_program_id, false),
         ],
         data: {
             let mut d = vec![P_INIT];
@@ -178,35 +177,62 @@ fn main() {
             d
         },
     };
+    // Vaults are pre-created by the client before calling initialize.
+    let p_vault_x_init = make_token_account(&p_mollusk, mint_x, p_config_pda, 0, token_program);
+    let p_vault_y_init = make_token_account(&p_mollusk, mint_y, p_config_pda, 0, token_program);
     let p_init_accounts = vec![
         (p_admin, p_admin_account.clone()),
         (mint_x, mint_x_account.clone()),
         (mint_y, mint_y_account.clone()),
         (p_config_pda, Account::new(0, 0, &system_program)),
         (p_lp_pda, Account::new(0, 0, &system_program)),
-        (p_vault_x, Account::new(0, 0, &system_program)),
-        (p_vault_y, Account::new(0, 0, &system_program)),
+        (p_vault_x, p_vault_x_init),
+        (p_vault_y, p_vault_y_init),
         (system_program, system_program_account.clone()),
         (token_program, token_program_account.clone()),
-        (ata_program_id, ata_program_account.clone()),
     ];
 
     // Pinocchio: shared pool state for deposit/swap/withdraw
-    let mut p_config_data = vec![0u8; P_CONFIG_LEN];
-    p_config_data[0..8].copy_from_slice(&seed.to_le_bytes());
-    p_config_data[40..72].copy_from_slice(&mint_x.to_bytes());
-    p_config_data[72..104].copy_from_slice(&mint_y.to_bytes());
-    p_config_data[104..106].copy_from_slice(&fee.to_le_bytes());
-    p_config_data[107] = p_config_bump;
-    p_config_data[108] = p_lp_bump;
-    let mut p_config_account = Account::new(
+    // Config layout: seed(8)|authority(32)|mint_x(32)|mint_y(32)|fee(2)|locked(1)|
+    //                config_bump(1)|lp_bump(1)|reserve_x(8)|reserve_y(8) = 125 bytes
+    let p_reserve_0: u64 = 0;
+    let p_reserve_100k: u64 = 100_000;
+
+    let mut p_config_data_0 = vec![0u8; P_CONFIG_LEN];
+    p_config_data_0[0..8].copy_from_slice(&seed.to_le_bytes());
+    p_config_data_0[40..72].copy_from_slice(&mint_x.to_bytes());
+    p_config_data_0[72..104].copy_from_slice(&mint_y.to_bytes());
+    p_config_data_0[104..106].copy_from_slice(&fee.to_le_bytes());
+    p_config_data_0[107] = p_config_bump;
+    p_config_data_0[108] = p_lp_bump;
+    p_config_data_0[109..117].copy_from_slice(&p_reserve_0.to_le_bytes());
+    p_config_data_0[117..125].copy_from_slice(&p_reserve_0.to_le_bytes());
+    let mut p_config_account_0 = Account::new(
         p_mollusk.sysvars.rent.minimum_balance(P_CONFIG_LEN),
         P_CONFIG_LEN,
         &p_program_id,
     );
-    p_config_account
+    p_config_account_0
         .data_as_mut_slice()
-        .copy_from_slice(&p_config_data);
+        .copy_from_slice(&p_config_data_0);
+
+    let mut p_config_data_100k = vec![0u8; P_CONFIG_LEN];
+    p_config_data_100k[0..8].copy_from_slice(&seed.to_le_bytes());
+    p_config_data_100k[40..72].copy_from_slice(&mint_x.to_bytes());
+    p_config_data_100k[72..104].copy_from_slice(&mint_y.to_bytes());
+    p_config_data_100k[104..106].copy_from_slice(&fee.to_le_bytes());
+    p_config_data_100k[107] = p_config_bump;
+    p_config_data_100k[108] = p_lp_bump;
+    p_config_data_100k[109..117].copy_from_slice(&p_reserve_100k.to_le_bytes());
+    p_config_data_100k[117..125].copy_from_slice(&p_reserve_100k.to_le_bytes());
+    let mut p_config_account_100k = Account::new(
+        p_mollusk.sysvars.rent.minimum_balance(P_CONFIG_LEN),
+        P_CONFIG_LEN,
+        &p_program_id,
+    );
+    p_config_account_100k
+        .data_as_mut_slice()
+        .copy_from_slice(&p_config_data_100k);
 
     let mut p_lp_mint_0 = Account::new(
         p_mollusk.sysvars.rent.minimum_balance(Mint::LEN),
@@ -253,7 +279,7 @@ fn main() {
     let p_user_ata_y = ata(p_user, token_program, mint_y, ata_program_id);
     let p_user_ata_lp = ata(p_user, token_program, p_lp_pda, ata_program_id);
 
-    // Pinocchio: deposit
+    // Pinocchio: deposit (first deposit — reserves = 0, user_ata_lp pre-existing)
     let p_deposit_ix = Instruction {
         program_id: p_program_id,
         accounts: vec![
@@ -267,9 +293,7 @@ fn main() {
             AccountMeta::new(p_user_ata_x, false),
             AccountMeta::new(p_user_ata_y, false),
             AccountMeta::new(p_user_ata_lp, false),
-            AccountMeta::new_readonly(system_program, false),
             AccountMeta::new_readonly(token_program, false),
-            AccountMeta::new_readonly(ata_program_id, false),
         ],
         data: {
             let mut d = vec![P_DEPOSIT];
@@ -279,16 +303,20 @@ fn main() {
             d
         },
     };
-    let p_vault_x_empty = make_token_account(&p_mollusk, mint_x, p_config_pda, 0, token_program);
-    let p_vault_y_empty = make_token_account(&p_mollusk, mint_y, p_config_pda, 0, token_program);
     let p_deposit_accounts = vec![
         (p_user, p_user_account.clone()),
         (mint_x, mint_x_account.clone()),
         (mint_y, mint_y_account.clone()),
-        (p_config_pda, p_config_account.clone()),
+        (p_config_pda, p_config_account_0.clone()),
         (p_lp_pda, p_lp_mint_0.clone()),
-        (p_vault_x, p_vault_x_empty),
-        (p_vault_y, p_vault_y_empty),
+        (
+            p_vault_x,
+            make_token_account(&p_mollusk, mint_x, p_config_pda, 0, token_program),
+        ),
+        (
+            p_vault_y,
+            make_token_account(&p_mollusk, mint_y, p_config_pda, 0, token_program),
+        ),
         (
             p_user_ata_x,
             make_token_account(&p_mollusk, mint_x, p_user, 100_000, token_program),
@@ -301,12 +329,10 @@ fn main() {
             p_user_ata_lp,
             make_token_account(&p_mollusk, p_lp_pda, p_user, 0, token_program),
         ),
-        (system_program, system_program_account.clone()),
         (token_program, token_program_account.clone()),
-        (ata_program_id, ata_program_account.clone()),
     ];
 
-    // Pinocchio: swap
+    // Pinocchio: swap (reserves cached in config, no mint_lp needed)
     let p_swap_ix = Instruction {
         program_id: p_program_id,
         accounts: vec![
@@ -314,14 +340,11 @@ fn main() {
             AccountMeta::new_readonly(mint_x, false),
             AccountMeta::new_readonly(mint_y, false),
             AccountMeta::new(p_config_pda, false),
-            AccountMeta::new_readonly(p_lp_pda, false),
             AccountMeta::new(p_vault_x, false),
             AccountMeta::new(p_vault_y, false),
             AccountMeta::new(p_user_ata_x, false),
             AccountMeta::new(p_user_ata_y, false),
-            AccountMeta::new_readonly(system_program, false),
             AccountMeta::new_readonly(token_program, false),
-            AccountMeta::new_readonly(ata_program_id, false),
         ],
         data: {
             let mut d = vec![P_SWAP, 1u8];
@@ -334,8 +357,7 @@ fn main() {
         (p_user, p_user_account.clone()),
         (mint_x, mint_x_account.clone()),
         (mint_y, mint_y_account.clone()),
-        (p_config_pda, p_config_account.clone()),
-        (p_lp_pda, p_lp_mint_100k.clone()),
+        (p_config_pda, p_config_account_100k.clone()),
         (p_vault_x, p_vault_x_account.clone()),
         (p_vault_y, p_vault_y_account.clone()),
         (
@@ -346,12 +368,10 @@ fn main() {
             p_user_ata_y,
             make_token_account(&p_mollusk, mint_y, p_user, 0, token_program),
         ),
-        (system_program, system_program_account.clone()),
         (token_program, token_program_account.clone()),
-        (ata_program_id, ata_program_account.clone()),
     ];
 
-    // Pinocchio: withdraw
+    // Pinocchio: withdraw (reserves cached in config, user ATAs pre-existing)
     let p_withdraw_ix = Instruction {
         program_id: p_program_id,
         accounts: vec![
@@ -365,9 +385,7 @@ fn main() {
             AccountMeta::new(p_user_ata_x, false),
             AccountMeta::new(p_user_ata_y, false),
             AccountMeta::new(p_user_ata_lp, false),
-            AccountMeta::new_readonly(system_program, false),
             AccountMeta::new_readonly(token_program, false),
-            AccountMeta::new_readonly(ata_program_id, false),
         ],
         data: {
             let mut d = vec![P_WITHDRAW];
@@ -381,7 +399,7 @@ fn main() {
         (p_user, p_user_account.clone()),
         (mint_x, mint_x_account.clone()),
         (mint_y, mint_y_account.clone()),
-        (p_config_pda, p_config_account.clone()),
+        (p_config_pda, p_config_account_100k.clone()),
         (p_lp_pda, p_lp_mint_100k.clone()),
         (p_vault_x, p_vault_x_account.clone()),
         (p_vault_y, p_vault_y_account.clone()),
@@ -397,9 +415,7 @@ fn main() {
             p_user_ata_lp,
             make_token_account(&p_mollusk, p_lp_pda, p_user, 50_000, token_program),
         ),
-        (system_program, system_program_account.clone()),
         (token_program, token_program_account.clone()),
-        (ata_program_id, ata_program_account.clone()),
     ];
 
     // Anchor
