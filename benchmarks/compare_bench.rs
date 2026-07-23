@@ -91,14 +91,9 @@ fn main() {
     let mint_y = Pubkey::new_from_array([0x02; 32]);
     let ata_program_id: Pubkey = ATA_PROGRAM_ID.parse().unwrap();
 
-    // -----------------------------------------------------------------------
-    // PINOCCHIO setup
-    // -----------------------------------------------------------------------
+    // Pinocchio
     let p_program_id: Pubkey = PINOCCHIO_AMM_ID.parse().unwrap();
     let mut p_mollusk = Mollusk::new(&p_program_id, "tests/elfs/amm");
-    // Pinocchio's Rent sysvar reads only `lamports_per_byte` (8 bytes) without
-    // applying exemption_threshold. Set lamports_per_byte_year = 6960 with
-    // threshold = 1.0 so pinocchio deposits the same amount SPL token requires.
     p_mollusk.sysvars.rent.lamports_per_byte_year = 6960;
     p_mollusk.sysvars.rent.exemption_threshold = 1.0;
     p_mollusk.add_program(&spl_token::ID, "tests/elfs/spl_token");
@@ -311,9 +306,7 @@ fn main() {
         (ata_program_id, ata_program_account.clone()),
     ];
 
-    // -----------------------------------------------------------------------
-    // ANCHOR setup
-    // -----------------------------------------------------------------------
+    // Anchor
     let a_program_id: Pubkey = ANCHOR_AMM_ID.parse().unwrap();
     let mut a_mollusk = Mollusk::new(&a_program_id, "tests/elfs/amm_anchor");
     a_mollusk.add_program(&spl_token::ID, "tests/elfs/spl_token");
@@ -504,9 +497,6 @@ fn main() {
         (system_program, system_program_account.clone()),
     ];
 
-    // -----------------------------------------------------------------------
-    // Run all benchmarks and collect CU counts
-    // -----------------------------------------------------------------------
     let p_init_cu   = run(&p_mollusk, "pinocchio::initialize", &p_init_ix,    &p_init_accounts);
     let p_dep_cu    = run(&p_mollusk, "pinocchio::deposit",    &p_deposit_ix,  &p_deposit_accounts);
     let p_swap_cu   = run(&p_mollusk, "pinocchio::swap",       &p_swap_ix,     &p_swap_accounts);
@@ -517,9 +507,6 @@ fn main() {
     let a_swap_cu   = run(&a_mollusk, "anchor::swap",          &a_swap_ix,     &a_swap_accounts);
     let a_with_cu   = run(&a_mollusk, "anchor::withdraw",      &a_withdraw_ix, &a_withdraw_accounts);
 
-    // -----------------------------------------------------------------------
-    // Write comparison table
-    // -----------------------------------------------------------------------
     fn savings(pinocchio: u64, anchor: u64) -> String {
         let pct = (anchor as f64 - pinocchio as f64) / anchor as f64 * 100.0;
         format!("{:.1}%", pct)

@@ -25,6 +25,10 @@ lto = "fat"
 codegen-units = 1
 opt-level = 3
 
+[profile.bench]
+inherits = "release"
+lto = false
+
 [dev-dependencies]
 litesvm = "0.15.0"
 solana-account = "4.3.1"
@@ -37,3 +41,51 @@ solana-system-interface = "3.2.0"
 solana-transaction = "4.1.5"
 spl-associated-token-account-client = "2.0.0"
 spl-token = "9.0.0"
+mollusk-svm = "0.10.3"
+mollusk-svm-bencher = "0.10.3"
+solana-sdk = "3.0.0"
+
+[[bench]]
+name = "initialize_ix_bench"
+path = "benchmarks/initialize_ix_bench.rs"
+harness = false
+
+[[bench]]
+name = "deposit_ix_bench"
+path = "benchmarks/deposit_ix_bench.rs"
+harness = false
+
+[[bench]]
+name = "swap_ix_bench"
+path = "benchmarks/swap_ix_bench.rs"
+harness = false
+
+[[bench]]
+name = "withdraw_ix_bench"
+path = "benchmarks/withdraw_ix_bench.rs"
+harness = false
+
+[[bench]]
+name = "initialize_anchor_bench"
+path = "benchmarks/initialize_anchor_bench.rs"
+harness = false
+
+[[bench]]
+name = "deposit_anchor_bench"
+path = "benchmarks/deposit_anchor_bench.rs"
+harness = false
+
+[[bench]]
+name = "swap_anchor_bench"
+path = "benchmarks/swap_anchor_bench.rs"
+harness = false
+
+[[bench]]
+name = "withdraw_anchor_bench"
+path = "benchmarks/withdraw_anchor_bench.rs"
+harness = false
+
+[[bench]]
+name = "compare_bench"
+path = "benchmarks/compare_bench.rs"
+harness = false

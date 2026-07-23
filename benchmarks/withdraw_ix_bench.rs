@@ -10,7 +10,6 @@ use solana_sdk::{
 };
 use spl_token::state::Mint;
 
-// Config layout: see deposit_ix_bench.rs for full comment
 const CONFIG_LEN: usize = 109;
 
 fn make_token_account(

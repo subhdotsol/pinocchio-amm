@@ -10,7 +10,6 @@ use solana_sdk::{
 };
 use spl_token::state::Mint;
 
-// Config layout: see deposit_ix_bench.rs for full comment
 const CONFIG_LEN: usize = 109;
 
 fn make_token_account(
@@ -170,7 +169,6 @@ fn main() {
     let vault_x_account = make_token_account(&mollusk, mint_x, config_pda, 100_000, token_program);
     let vault_y_account = make_token_account(&mollusk, mint_y, config_pda, 100_000, token_program);
 
-    // User accounts: pre-initialize both ATAs so CreateIdempotent is a no-op
     let user = Pubkey::new_unique();
     let user_ata_x = ata(user, token_program, mint_x, ata_program_id);
     let user_ata_y = ata(user, token_program, mint_y, ata_program_id);

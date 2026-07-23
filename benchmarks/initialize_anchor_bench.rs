@@ -9,7 +9,6 @@ use solana_sdk::{
 };
 use spl_token::state::Mint;
 
-// Anchor program ID from declare_id! in lib.rs
 const ANCHOR_AMM_ID: &str = "9a95ZYK3AT5HcivR5X59niNgqdYP9oE5XqomA2kNHWRV";
 // sha256("global:initialize")[..8]
 const DISCRIMINATOR: [u8; 8] = [0xaf, 0xaf, 0x6d, 0x1f, 0x0d, 0x98, 0x9b, 0xed];

@@ -10,15 +10,6 @@ use solana_sdk::{
 };
 use spl_token::state::Mint;
 
-// Config layout (109 bytes, #[repr(C)], all fields byte-aligned, no padding):
-//   [0..8]    seed: u64 LE
-//   [8..40]   authority: [u8; 32]
-//   [40..72]  mint_x: [u8; 32]
-//   [72..104] mint_y: [u8; 32]
-//   [104..106] fee: u16 LE
-//   [106]     locked: u8
-//   [107]     config_bump: u8
-//   [108]     lp_bump: u8
 const CONFIG_LEN: usize = 109;
 
 fn make_token_account(
@@ -189,7 +180,6 @@ fn main() {
     let user_account = Account::new(10_000_000_000, 0, &system_program);
     let user_ata_x_account = make_token_account(&mollusk, mint_x, user, 100_000, token_program);
     let user_ata_y_account = make_token_account(&mollusk, mint_y, user, 100_000, token_program);
-    // Pre-initialize user_ata_lp so CreateIdempotent is a no-op
     let user_ata_lp_account = make_token_account(&mollusk, lp_pda, user, 0, token_program);
 
     // Instruction data: [discriminator(1), amount(8), max_x(8), max_y(8)]

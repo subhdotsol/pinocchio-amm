@@ -15,17 +15,6 @@ const DISCRIMINATOR: [u8; 8] = [0xf2, 0x23, 0xc6, 0x89, 0x52, 0xe1, 0xf2, 0xb6];
 // sha256("account:Config")[..8]
 const CONFIG_DISC: [u8; 8] = [0x9b, 0x0c, 0xaa, 0xe0, 0x1e, 0xfa, 0xcc, 0x82];
 
-// Anchor Config layout (borsh, with 8-byte discriminator prefix):
-//   [0..8]   disc
-//   [8..16]  seed: u64 LE
-//   [16]     authority tag: 0 = None
-//   [17..49] mint_x: Pubkey
-//   [49..81] mint_y: Pubkey
-//   [81..83] fee: u16 LE
-//   [83]     locked: bool
-//   [84]     config_bump: u8
-//   [85]     lp_bump: u8
-//   [86..118] padding to InitSpace (Option<Pubkey> reserves 33 bytes)
 const CONFIG_LEN: usize = 118;
 
 fn make_token_account(

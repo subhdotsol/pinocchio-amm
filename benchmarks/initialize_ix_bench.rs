@@ -15,9 +15,6 @@ fn main() {
         .parse()
         .unwrap();
     let mut mollusk = Mollusk::new(&program_id, "tests/elfs/amm");
-    // Pinocchio's Rent sysvar reads only `lamports_per_byte` (8 bytes) without
-    // applying exemption_threshold. Set lamports_per_byte_year = 6960 with
-    // threshold = 1.0 so pinocchio deposits the same amount SPL token requires.
     mollusk.sysvars.rent.lamports_per_byte_year = 6960;
     mollusk.sysvars.rent.exemption_threshold = 1.0;
 
