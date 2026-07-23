@@ -73,6 +73,14 @@ fn ata(owner: Pubkey, token_program: Pubkey, mint: Pubkey, ata_program: Pubkey) 
     .0
 }
 
+#[allow(deprecated)]
+fn set_pinocchio_rent(mollusk: &mut Mollusk) {
+    // pinocchio reads only lamports_per_byte from sysvar (no exemption_threshold);
+    // set both so SPL token and pinocchio agree on minimum_balance.
+    mollusk.sysvars.rent.lamports_per_byte_year = 6960;
+    mollusk.sysvars.rent.exemption_threshold = 1.0;
+}
+
 fn run(mollusk: &Mollusk, name: &str, ix: &Instruction, accounts: &[(Pubkey, Account)]) -> u64 {
     let result = mollusk.process_instruction(ix, accounts);
     assert!(
@@ -94,8 +102,7 @@ fn main() {
     // Pinocchio
     let p_program_id: Pubkey = PINOCCHIO_AMM_ID.parse().unwrap();
     let mut p_mollusk = Mollusk::new(&p_program_id, "tests/elfs/amm");
-    p_mollusk.sysvars.rent.lamports_per_byte_year = 6960;
-    p_mollusk.sysvars.rent.exemption_threshold = 1.0;
+    set_pinocchio_rent(&mut p_mollusk);
     p_mollusk.add_program(&spl_token::ID, "tests/elfs/spl_token");
     p_mollusk.add_program(&ata_program_id, "tests/elfs/spl_associated_token_account");
 

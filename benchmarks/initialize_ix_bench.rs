@@ -10,13 +10,20 @@ use solana_sdk::{
 };
 use spl_token::state::Mint;
 
+#[allow(deprecated)]
+fn set_pinocchio_rent(mollusk: &mut Mollusk) {
+    // pinocchio reads only lamports_per_byte from sysvar (no exemption_threshold);
+    // set both so SPL token and pinocchio agree on minimum_balance.
+    mollusk.sysvars.rent.lamports_per_byte_year = 6960;
+    mollusk.sysvars.rent.exemption_threshold = 1.0;
+}
+
 fn main() {
     let program_id: Pubkey = "2zmvAfAG6t839jmhL9uim6yp9WBrSJyqN9TTeuoEQmkE"
         .parse()
         .unwrap();
     let mut mollusk = Mollusk::new(&program_id, "tests/elfs/amm");
-    mollusk.sysvars.rent.lamports_per_byte_year = 6960;
-    mollusk.sysvars.rent.exemption_threshold = 1.0;
+    set_pinocchio_rent(&mut mollusk);
 
     mollusk.add_program(&spl_token::ID, "tests/elfs/spl_token");
 
